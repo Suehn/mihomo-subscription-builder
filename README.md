@@ -23,6 +23,17 @@ current `vms.217777.xyz` feed behind the local lightweight `美西` profile.
 - Mirrors remote rule files into your own GitHub Pages artifact
 - Renders a Mihomo configuration with self-hosted `rule-providers`
 - Renders a Shadowrocket configuration and also emits URI subscription fallbacks
+- Uses emoji policy groups for easier client-side reading
+
+## Rule Strategy
+
+This project intentionally borrows and composes multiple GitHub-maintained rule sources instead of hand-maintaining a giant local ruleset:
+
+- `MetaCubeX/meta-rules-dat` for the Mihomo geosite/geoip backbone
+- `SukkaW/Surge` for Apple, Microsoft, download, LAN, domestic, Telegram, AI, and streaming rule sets
+- `blackmatrix7/ios_rule_script` for selective high-value domestic service supplements such as WeChat, BiliBili, NetEaseMusic, and China media
+
+The update model is therefore simple: this repo republishes upstream rules on every workflow run, while keeping your own stable subscription URLs.
 
 ## Local Usage
 
