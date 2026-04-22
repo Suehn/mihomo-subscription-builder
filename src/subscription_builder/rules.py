@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import time
 from typing import Iterable
+import urllib.error
 import urllib.request
 
 import yaml
@@ -24,8 +26,17 @@ class BuiltRule:
 
 def _fetch_text(url: str, user_agent: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8", errors="replace")
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return response.read().decode("utf-8", errors="replace")
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt == 2:
+                break
+            time.sleep(1.5 * (attempt + 1))
+    raise RuntimeError(f"Failed to fetch rule source after retries: {url}") from last_error
 
 
 def _convert_metacubex_domain_yaml_to_shadowrocket(content: str) -> str:

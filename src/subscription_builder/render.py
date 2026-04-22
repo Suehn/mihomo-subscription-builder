@@ -222,3 +222,37 @@ def render_shadowrocket(
     }
     rendered = template.render(**context)
     (output_root / "shadowrocket.conf").write_text(rendered + "\n", encoding="utf-8")
+
+
+def render_index(*, output_root: Path, public_base_url: str) -> None:
+    links = [
+        ("Mihomo subscription", f"{public_base_url}/mihomo-full.yaml"),
+        ("Shadowrocket config", f"{public_base_url}/shadowrocket.conf"),
+        ("Shadowrocket node subscription", f"{public_base_url}/shadowrocket-subscription.txt"),
+    ]
+    items = "\n".join(f'<li><a href="{url}">{label}</a></li>' for label, url in links)
+    html = f"""<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\">
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+  <title>mihomo-subscription-builder</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 760px; margin: 48px auto; padding: 0 20px; line-height: 1.6; color: #111827; }}
+    h1 {{ margin-bottom: 8px; }}
+    code {{ background: #f3f4f6; padding: 2px 6px; border-radius: 6px; }}
+    a {{ color: #0f62fe; text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
+  </style>
+</head>
+<body>
+  <h1>mihomo-subscription-builder</h1>
+  <p>Remote subscription artifacts for Mihomo and Shadowrocket.</p>
+  <ul>
+    {items}
+  </ul>
+  <p>Base URL: <code>{public_base_url}</code></p>
+</body>
+</html>
+"""
+    (output_root / "index.html").write_text(html + "\n", encoding="utf-8")

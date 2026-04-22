@@ -9,7 +9,7 @@ import yaml
 
 from .config import ProjectConfig, load_project_config
 from .nodes import fetch_and_parse_nodes, write_nodes_json, write_shadowrocket_uri_artifacts
-from .render import render_mihomo, render_shadowrocket
+from .render import render_index, render_mihomo, render_shadowrocket
 from .rules import build_rules, write_rule_manifest
 
 
@@ -53,6 +53,7 @@ def _build_all(args: argparse.Namespace) -> int:
         nodes=nodes,
         manifest=manifest,
     )
+    render_index(output_root=output_root, public_base_url=public_base_url)
     return 0
 
 
@@ -109,4 +110,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
-

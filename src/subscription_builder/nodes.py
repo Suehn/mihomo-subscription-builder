@@ -4,7 +4,9 @@ import base64
 from dataclasses import asdict
 import json
 from pathlib import Path
+import time
 from typing import Iterable
+import urllib.error
 import urllib.request
 
 from .models import ProxyNode
@@ -12,8 +14,17 @@ from .models import ProxyNode
 
 def fetch_url_text(url: str, user_agent: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8", errors="replace")
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return response.read().decode("utf-8", errors="replace")
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt == 2:
+                break
+            time.sleep(1.5 * (attempt + 1))
+    raise RuntimeError(f"Failed to fetch upstream subscription after retries: {url}") from last_error
 
 
 def decode_subscription_payload(raw_text: str) -> str:
@@ -59,4 +70,3 @@ def write_shadowrocket_uri_artifacts(nodes: Iterable[ProxyNode], output_dir: Pat
     (output_dir / "shadowrocket-uris.txt").write_text(uri_text, encoding="utf-8")
     encoded = base64.b64encode(uri_text.encode("utf-8")).decode("ascii")
     (output_dir / "shadowrocket-subscription.txt").write_text(encoded + "\n", encoding="utf-8")
-

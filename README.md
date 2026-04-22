@@ -46,6 +46,7 @@ Generated files land in `dist/`:
 - `dist/shadowrocket.conf`
 - `dist/shadowrocket-subscription.txt`
 - `dist/shadowrocket-uris.txt`
+- `dist/index.html`
 - `dist/rules/`
 
 ## GitHub Actions Setup
