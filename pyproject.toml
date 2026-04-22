@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mihomo-subscription-builder"
+version = "0.1.0"
+description = "Generate multi-client remote subscriptions from raw proxy links."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "Jinja2>=3.1.4",
+  "PyYAML>=6.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.5",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
