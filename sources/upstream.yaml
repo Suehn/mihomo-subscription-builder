@@ -126,6 +126,76 @@ rules:
       shadowrocket:
         source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/ChinaMedia/ChinaMedia.list
         path: rules/shadowrocket/china_media.list
+  - id: tencent_direct
+    policy: DIRECT
+    outputs:
+      mihomo:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Tencent/Tencent.yaml
+        path: rules/mihomo/tencent.yaml
+        behavior: classical
+      shadowrocket:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Tencent/Tencent.list
+        path: rules/shadowrocket/tencent.list
+  - id: alibaba_direct
+    policy: DIRECT
+    outputs:
+      mihomo:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Alibaba/Alibaba.yaml
+        path: rules/mihomo/alibaba.yaml
+        behavior: classical
+      shadowrocket:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Alibaba/Alibaba.list
+        path: rules/shadowrocket/alibaba.list
+  - id: baidu_direct
+    policy: DIRECT
+    outputs:
+      mihomo:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Baidu/Baidu.yaml
+        path: rules/mihomo/baidu.yaml
+        behavior: classical
+      shadowrocket:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Baidu/Baidu.list
+        path: rules/shadowrocket/baidu.list
+  - id: weibo_direct
+    policy: DIRECT
+    outputs:
+      mihomo:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Weibo/Weibo.yaml
+        path: rules/mihomo/weibo.yaml
+        behavior: classical
+      shadowrocket:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Weibo/Weibo.list
+        path: rules/shadowrocket/weibo.list
+  - id: xiaohongshu_direct
+    policy: DIRECT
+    outputs:
+      mihomo:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/XiaoHongShu/XiaoHongShu.yaml
+        path: rules/mihomo/xiaohongshu.yaml
+        behavior: classical
+      shadowrocket:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/XiaoHongShu/XiaoHongShu.list
+        path: rules/shadowrocket/xiaohongshu.list
+  - id: xiaomi_direct
+    policy: DIRECT
+    outputs:
+      mihomo:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/XiaoMi/XiaoMi.yaml
+        path: rules/mihomo/xiaomi.yaml
+        behavior: classical
+      shadowrocket:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/XiaoMi/XiaoMi.list
+        path: rules/shadowrocket/xiaomi.list
+  - id: huawei_direct
+    policy: DIRECT
+    outputs:
+      mihomo:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Huawei/Huawei.yaml
+        path: rules/mihomo/huawei.yaml
+        behavior: classical
+      shadowrocket:
+        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Huawei/Huawei.list
+        path: rules/shadowrocket/huawei.list
   - id: ai
     policy: AI
     outputs:

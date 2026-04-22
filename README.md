@@ -32,6 +32,9 @@ This project intentionally borrows and composes multiple GitHub-maintained rule 
 - `MetaCubeX/meta-rules-dat` for the Mihomo geosite/geoip backbone
 - `SukkaW/Surge` for Apple, Microsoft, download, LAN, domestic, Telegram, AI, and streaming rule sets
 - `blackmatrix7/ios_rule_script` for selective high-value domestic service supplements such as WeChat, BiliBili, NetEaseMusic, and China media
+- `blackmatrix7/ios_rule_script` for selective high-value domestic service supplements such as Tencent, Alibaba, Baidu, Weibo, XiaoHongShu, XiaoMi, Huawei, WeChat, BiliBili, NetEaseMusic, and China media
+
+For Mihomo clients, the generated config also enables `geodata` auto-update against MetaCubeX GEO artifacts. This is treated as a lower-level GEO data base for DNS and future GEO rules, not as a replacement for the self-hosted rule-provider layer.
 
 The update model is therefore simple: this repo republishes upstream rules on every workflow run, while keeping your own stable subscription URLs.
 
