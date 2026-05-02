@@ -169,6 +169,7 @@ def test_mihomo_download_and_fallback_groups_prefer_proxy(tmp_path: Path) -> Non
     config = _render_config(tmp_path)
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
 
+    assert config["proxy-groups"][0]["name"] == "🚀 代理"
     assert groups["🪟 Microsoft"][:3] == ["🚀 代理", "🔁 故障转移", "DIRECT"]
     assert groups["⬇️ 下载"][:3] == ["🔁 故障转移", "🚀 代理", "⚡ 自动选择"]
     assert groups["🌐 兜底"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
@@ -255,11 +256,23 @@ def test_shadowrocket_routes_specific_foreign_services_before_download_and_cn_ip
 def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path) -> None:
     text = _render_shadowrocket(tmp_path)
     lines = text.splitlines()
+    group_lines = []
+    in_group_section = False
+    for line in lines:
+        if line == "[Proxy Group]":
+            in_group_section = True
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            in_group_section = False
+        elif in_group_section and line:
+            group_lines.append(line)
 
     assert "ipv6 = false" in lines
     assert "dns-server = https://doh.pub/dns-query,https://dns.alidns.com/dns-query" in lines
     assert "1.1.1.1" not in text
     assert "8.8.8.8" not in text
+    assert group_lines[0] == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
+    assert next(line for line in lines if line.startswith("🚀 代理 = ")) == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
     assert "🔁 故障转移 = fallback,node-a,url=https://www.gstatic.com/generate_204,interval=300" in lines
     assert "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a" in lines
     assert "🤖 AI = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines

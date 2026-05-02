@@ -1,4 +1,12 @@
 groups:
+  - key: PROXY
+    type: select
+    members:
+      - "@FALLBACK"
+      - "@AUTO"
+      - "@MANUAL"
+      - DIRECT
+    include_nodes: true
   - key: FALLBACK
     type: fallback
     include_nodes: true
@@ -14,14 +22,6 @@ groups:
     timeout: 3000
   - key: MANUAL
     type: select
-    include_nodes: true
-  - key: PROXY
-    type: select
-    members:
-      - "@FALLBACK"
-      - "@AUTO"
-      - "@MANUAL"
-      - DIRECT
     include_nodes: true
   - key: RuleUpdate
     type: select
