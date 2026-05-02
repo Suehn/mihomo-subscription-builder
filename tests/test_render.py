@@ -155,6 +155,16 @@ def test_mihomo_disables_ipv6_by_default(tmp_path: Path) -> None:
     assert config["dns"]["ipv6"] is False
 
 
+def test_mihomo_uses_domestic_doh_and_filters_local_wpad(tmp_path: Path) -> None:
+    config = _render_config(tmp_path)
+    dns = config["dns"]
+
+    assert "https://1.1.1.1/dns-query" not in str(dns)
+    assert "https://8.8.8.8/dns-query" not in str(dns)
+    assert "wpad" in dns["fake-ip-filter"]
+    assert config["rules"][0] == "DOMAIN,wpad,REJECT"
+
+
 def test_mihomo_download_and_fallback_groups_prefer_proxy(tmp_path: Path) -> None:
     config = _render_config(tmp_path)
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
@@ -199,7 +209,8 @@ def test_mihomo_only_renders_rule_providers_referenced_by_rules(tmp_path: Path) 
 def test_mihomo_adds_device_overlay_rules_and_rule_update_proxy(tmp_path: Path) -> None:
     config = _render_config(tmp_path)
 
-    assert config["rules"][:4] == [
+    assert config["rules"][:5] == [
+        "DOMAIN,wpad,REJECT",
         "PROCESS-NAME,WeChat,DIRECT",
         "PROCESS-NAME,WeChatAppEx,DIRECT",
         "PROCESS-NAME,QQ,DIRECT",
@@ -246,6 +257,9 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     lines = text.splitlines()
 
     assert "ipv6 = false" in lines
+    assert "dns-server = https://doh.pub/dns-query,https://dns.alidns.com/dns-query" in lines
+    assert "1.1.1.1" not in text
+    assert "8.8.8.8" not in text
     assert "🔁 故障转移 = fallback,node-a,url=https://www.gstatic.com/generate_204,interval=300" in lines
     assert "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a" in lines
     assert "🤖 AI = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines

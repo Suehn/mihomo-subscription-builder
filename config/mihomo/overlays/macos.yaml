@@ -1,4 +1,5 @@
 prepend-rules:
+  - DOMAIN,wpad,REJECT
   - PROCESS-NAME,WeChat,DIRECT
   - PROCESS-NAME,WeChatAppEx,DIRECT
   - PROCESS-NAME,QQ,DIRECT
