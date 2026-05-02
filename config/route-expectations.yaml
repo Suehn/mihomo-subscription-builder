@@ -1,0 +1,26 @@
+domains:
+  github.com: "💻 GitHub"
+  objects.githubusercontent.com: "💻 GitHub"
+  release-assets.githubusercontent.com: "💻 GitHub"
+  chatgpt.com: "🤖 AI"
+  claude.ai: "🤖 AI"
+  gemini.google.com: "🤖 AI"
+  api.telegram.org: "✈️ Telegram"
+  youtube.com: "📺 流媒体"
+  netflix.com: "📺 流媒体"
+  bilibili.com: DIRECT
+  iqiyi.com: DIRECT
+  v.qq.com: DIRECT
+  youku.com: DIRECT
+  douyin.com: DIRECT
+  taobao.com: DIRECT
+  npmmirror.com: DIRECT
+  mirrors.aliyun.com: DIRECT
+  mirrors.tencent.com: DIRECT
+  mirrors.cloud.tencent.com: DIRECT
+  mirrors.huaweicloud.com: DIRECT
+  mirrors.tuna.tsinghua.edu.cn: DIRECT
+  mirrors.ustc.edu.cn: DIRECT
+  download.visualstudio.microsoft.com: DIRECT
+  download.jetbrains.com: "⬇️ 下载"
+  registry.npmjs.org: "⬇️ 下载"

@@ -200,175 +200,208 @@ rules:
     policy: AI
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/ai.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/ai.txt
         path: rules/mihomo/ai.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/ai.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/ai.conf
         path: rules/shadowrocket/ai.conf
+  - id: apple_intelligence
+    policy: AI
+    outputs:
+      mihomo:
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/apple_intelligence.txt
+        path: rules/mihomo/apple_intelligence.txt
+        behavior: classical
+        format: text
+      shadowrocket:
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_intelligence.conf
+        path: rules/shadowrocket/apple_intelligence.conf
   - id: apple_cdn
     policy: DIRECT
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/domainset/apple_cdn.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/domainset/apple_cdn.txt
         path: rules/mihomo/apple_cdn.txt
         behavior: domain
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/domainset/apple_cdn.conf
+        source_url: https://ruleset-mirror.skk.moe/List/domainset/apple_cdn.conf
         path: rules/shadowrocket/apple_cdn.conf
   - id: apple_cn
     policy: DIRECT
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/apple_cn.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/apple_cn.txt
         path: rules/mihomo/apple_cn.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/apple_cn.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_cn.conf
         path: rules/shadowrocket/apple_cn.conf
   - id: apple_services
     policy: Apple
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/apple_services.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/apple_services.txt
         path: rules/mihomo/apple_services.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/apple_services.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_services.conf
         path: rules/shadowrocket/apple_services.conf
   - id: microsoft_cdn
     policy: DIRECT
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/microsoft_cdn.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/microsoft_cdn.txt
         path: rules/mihomo/microsoft_cdn.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/microsoft_cdn.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/microsoft_cdn.conf
         path: rules/shadowrocket/microsoft_cdn.conf
   - id: microsoft
     policy: Microsoft
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/microsoft.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/microsoft.txt
         path: rules/mihomo/microsoft.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/microsoft.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/microsoft.conf
         path: rules/shadowrocket/microsoft.conf
   - id: telegram_non_ip
     policy: Telegram
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/telegram.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/telegram.txt
         path: rules/mihomo/telegram.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/telegram.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/telegram.conf
         path: rules/shadowrocket/telegram.conf
   - id: telegram_ip
     policy: Telegram
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/ip/telegram.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/ip/telegram.txt
         path: rules/mihomo/telegram_ip.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/ip/telegram.conf
+        source_url: https://ruleset-mirror.skk.moe/List/ip/telegram.conf
         path: rules/shadowrocket/telegram_ip.conf
   - id: stream_non_ip
     policy: Streaming
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/stream.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/stream.txt
         path: rules/mihomo/stream.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/stream.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/stream.conf
         path: rules/shadowrocket/stream.conf
   - id: stream_ip
     policy: Streaming
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/ip/stream.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/ip/stream.txt
         path: rules/mihomo/stream_ip.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/ip/stream.conf
+        source_url: https://ruleset-mirror.skk.moe/List/ip/stream.conf
         path: rules/shadowrocket/stream_ip.conf
   - id: download_domainset
     policy: Download
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/domainset/download.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/domainset/download.txt
         path: rules/mihomo/download_domainset.txt
         behavior: domain
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/domainset/download.conf
+        source_url: https://ruleset-mirror.skk.moe/List/domainset/download.conf
         path: rules/shadowrocket/download_domainset.conf
   - id: download_non_ip
     policy: Download
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/download.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/download.txt
         path: rules/mihomo/download_non_ip.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/download.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/download.conf
         path: rules/shadowrocket/download_non_ip.conf
+  - id: direct_non_ip
+    policy: DIRECT
+    outputs:
+      mihomo:
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/direct.txt
+        path: rules/mihomo/direct.txt
+        behavior: classical
+        format: text
+      shadowrocket:
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/direct.conf
+        path: rules/shadowrocket/direct.conf
+  - id: global_non_ip
+    policy: PROXY
+    outputs:
+      mihomo:
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/global.txt
+        path: rules/mihomo/global.txt
+        behavior: classical
+        format: text
+      shadowrocket:
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/global.conf
+        path: rules/shadowrocket/global.conf
   - id: lan_non_ip
     policy: DIRECT
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/lan.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/lan.txt
         path: rules/mihomo/lan.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/lan.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/lan.conf
         path: rules/shadowrocket/lan.conf
   - id: lan_ip
     policy: DIRECT
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/ip/lan.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/ip/lan.txt
         path: rules/mihomo/lan_ip.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/ip/lan.conf
+        source_url: https://ruleset-mirror.skk.moe/List/ip/lan.conf
         path: rules/shadowrocket/lan_ip.conf
   - id: domestic_non_ip
     policy: DIRECT
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/non_ip/domestic.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/domestic.txt
         path: rules/mihomo/domestic.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/non_ip/domestic.conf
+        source_url: https://ruleset-mirror.skk.moe/List/non_ip/domestic.conf
         path: rules/shadowrocket/domestic.conf
   - id: domestic_ip
     policy: DIRECT
     outputs:
       mihomo:
-        source_url: https://ruleset.skk.moe/Clash/ip/domestic.txt
+        source_url: https://ruleset-mirror.skk.moe/Clash/ip/domestic.txt
         path: rules/mihomo/domestic_ip.txt
         behavior: classical
         format: text
       shadowrocket:
-        source_url: https://ruleset.skk.moe/List/ip/domestic.conf
+        source_url: https://ruleset-mirror.skk.moe/List/ip/domestic.conf
         path: rules/shadowrocket/domestic_ip.conf

@@ -5,12 +5,13 @@ from pathlib import Path
 import subprocess
 import sys
 
-import yaml
-
 from .config import ProjectConfig, load_project_config
 from .nodes import fetch_and_parse_nodes, write_nodes_json, write_shadowrocket_uri_artifacts
 from .render import render_index, render_mihomo, render_shadowrocket
+from .route_expectations import validate_route_expectations
+from .runtime_smoke import run_mihomo_runtime_smoke
 from .rules import build_rules, write_rule_manifest
+from .validate import validate_mihomo_config, validate_shadowrocket_config
 
 
 DEFAULT_MIhOMO_BIN = Path("/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo")
@@ -45,6 +46,17 @@ def _build_all(args: argparse.Namespace) -> int:
         public_base_url=public_base_url,
         nodes=nodes,
         manifest=manifest,
+        overlay_name="macos",
+        output_name="mihomo-full.yaml",
+    )
+    render_mihomo(
+        project_root=project_root,
+        output_root=output_root,
+        public_base_url=public_base_url,
+        nodes=nodes,
+        manifest=manifest,
+        overlay_name="android",
+        output_name="mihomo-android.yaml",
     )
     render_shadowrocket(
         project_root=project_root,
@@ -60,26 +72,49 @@ def _build_all(args: argparse.Namespace) -> int:
 def _validate(args: argparse.Namespace) -> int:
     project_root, _, output_root, _ = _load_context(args)
     mihomo_path = output_root / "mihomo-full.yaml"
+    android_mihomo_path = output_root / "mihomo-android.yaml"
     shadowrocket_path = output_root / "shadowrocket.conf"
     if not mihomo_path.exists():
         raise FileNotFoundError(mihomo_path)
+    if not android_mihomo_path.exists():
+        raise FileNotFoundError(android_mihomo_path)
     if not shadowrocket_path.exists():
         raise FileNotFoundError(shadowrocket_path)
 
-    mihomo_data = yaml.safe_load(mihomo_path.read_text(encoding="utf-8"))
-    required_keys = {"proxies", "proxy-groups", "rule-providers", "rules"}
-    missing = required_keys - set(mihomo_data.keys())
-    if missing:
-        raise ValueError(f"Mihomo config is missing required keys: {sorted(missing)}")
+    validation_path = project_root / "config" / "mihomo" / "validation.yaml"
+    validate_mihomo_config(mihomo_path, validation_path)
+    validate_mihomo_config(android_mihomo_path, validation_path)
 
-    shadowrocket_text = shadowrocket_path.read_text(encoding="utf-8")
-    for section in ("[General]", "[Proxy]", "[Proxy Group]", "[Rule]"):
-        if section not in shadowrocket_text:
-            raise ValueError(f"Shadowrocket config is missing section: {section}")
+    validate_shadowrocket_config(shadowrocket_path)
+    validate_route_expectations(
+        mihomo_paths=[mihomo_path, android_mihomo_path],
+        shadowrocket_path=shadowrocket_path,
+        expectations_path=project_root / "config" / "route-expectations.yaml",
+    )
 
     mihomo_bin = Path(args.mihomo_bin).resolve() if args.mihomo_bin else DEFAULT_MIhOMO_BIN
     if mihomo_bin.exists():
         subprocess.run([str(mihomo_bin), "-t", "-f", str(mihomo_path)], check=True)
+        subprocess.run([str(mihomo_bin), "-t", "-f", str(android_mihomo_path)], check=True)
+    return 0
+
+
+def _smoke_runtime(args: argparse.Namespace) -> int:
+    project_root, _, output_root, _ = _load_context(args)
+    mihomo_bin = Path(args.mihomo_bin).resolve() if args.mihomo_bin else DEFAULT_MIhOMO_BIN
+    if not mihomo_bin.exists():
+        raise FileNotFoundError(mihomo_bin)
+
+    urls = list(args.url)
+    for index, config_name in enumerate(("mihomo-full.yaml", "mihomo-android.yaml")):
+        run_mihomo_runtime_smoke(
+            mihomo_bin=mihomo_bin,
+            config_path=output_root / config_name,
+            mixed_port=args.mixed_port + index * 10,
+            controller_port=args.controller_port + index * 10,
+            urls=urls,
+            provider_timeout_seconds=args.provider_timeout,
+        )
     return 0
 
 
@@ -94,6 +129,16 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("build-all")
     subparsers.add_parser("validate")
+    smoke_parser = subparsers.add_parser("smoke-runtime")
+    smoke_parser.add_argument("--mixed-port", type=int, default=18600)
+    smoke_parser.add_argument("--controller-port", type=int, default=18601)
+    smoke_parser.add_argument("--provider-timeout", type=float, default=30)
+    smoke_parser.add_argument(
+        "--url",
+        action="append",
+        default=["https://www.baidu.com/", "https://github.com/"],
+        help="URL to request through the temporary mixed-port. Can be passed more than once.",
+    )
     return parser
 
 
@@ -104,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
         return _build_all(args)
     if args.command == "validate":
         return _validate(args)
+    if args.command == "smoke-runtime":
+        return _smoke_runtime(args)
     parser.error(f"Unsupported command: {args.command}")
     return 2
 

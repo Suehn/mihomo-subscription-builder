@@ -1,0 +1,95 @@
+groups:
+  - key: FALLBACK
+    type: fallback
+    include_nodes: true
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    timeout: 3000
+  - key: AUTO
+    type: url-test
+    include_nodes: true
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+    timeout: 3000
+  - key: MANUAL
+    type: select
+    include_nodes: true
+  - key: PROXY
+    type: select
+    members:
+      - "@FALLBACK"
+      - "@AUTO"
+      - "@MANUAL"
+      - DIRECT
+    include_nodes: true
+  - key: RuleUpdate
+    type: select
+    members:
+      - "@PROXY"
+      - "@FALLBACK"
+      - DIRECT
+  - key: GitHub
+    type: select
+    members:
+      - "@PROXY"
+      - "@FALLBACK"
+      - "@AUTO"
+      - DIRECT
+    include_nodes: true
+  - key: AI
+    type: select
+    members:
+      - "@PROXY"
+      - "@FALLBACK"
+      - "@AUTO"
+      - "@MANUAL"
+    include_nodes: true
+  - key: Apple
+    type: select
+    members:
+      - DIRECT
+      - "@PROXY"
+      - "@AUTO"
+    include_nodes: true
+  - key: Microsoft
+    type: select
+    members:
+      - "@PROXY"
+      - "@FALLBACK"
+      - DIRECT
+      - "@AUTO"
+    include_nodes: true
+  - key: Telegram
+    type: select
+    members:
+      - "@PROXY"
+      - "@FALLBACK"
+      - "@AUTO"
+      - "@MANUAL"
+    include_nodes: true
+  - key: Streaming
+    type: select
+    members:
+      - "@PROXY"
+      - "@FALLBACK"
+      - "@AUTO"
+      - "@MANUAL"
+      - DIRECT
+    include_nodes: true
+  - key: Download
+    type: select
+    members:
+      - "@FALLBACK"
+      - "@PROXY"
+      - "@AUTO"
+      - DIRECT
+    include_nodes: true
+  - key: Final
+    type: select
+    members:
+      - "@PROXY"
+      - "@FALLBACK"
+      - "@AUTO"
+      - DIRECT
+    include_nodes: true

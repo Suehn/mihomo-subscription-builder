@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from copy import deepcopy
 from pathlib import Path
 from typing import Iterable
 
@@ -13,7 +13,10 @@ from .rules import BuiltRule
 
 GROUP_LABELS = {
     "AUTO": "⚡ 自动选择",
+    "FALLBACK": "🔁 故障转移",
+    "MANUAL": "🧭 手动选择",
     "PROXY": "🚀 代理",
+    "RuleUpdate": "🔄 规则更新",
     "AI": "🤖 AI",
     "GitHub": "💻 GitHub",
     "Apple": "🍎 Apple",
@@ -37,16 +40,220 @@ def _rule_lookup(items: Iterable[BuiltRule]) -> dict[str, BuiltRule]:
     return {item.rule_id: item for item in items}
 
 
-def _build_proxy_group(group_name: str, preferred: list[str], node_names: list[str]) -> dict[str, object]:
+def _load_yaml(path: Path) -> object:
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def _load_mihomo_template(project_root: Path, name: str) -> object:
+    return _load_yaml(project_root / "config" / "mihomo" / name)
+
+
+def _resolve_policy(value: str) -> str:
+    if value.startswith("@"):
+        return _g(value[1:])
+    return value
+
+
+def _resolve_rule(line: str) -> str:
+    parts = line.split(",")
+    if parts[0] in {"MATCH", "FINAL"} and len(parts) >= 2:
+        parts[1] = _resolve_policy(parts[1])
+        return ",".join(parts)
+    if len(parts) >= 3:
+        parts[2] = _resolve_policy(parts[2])
+    return ",".join(parts)
+
+
+def _dedupe(items: Iterable[str]) -> list[str]:
     seen: list[str] = []
-    for item in preferred + node_names:
+    for item in items:
         if item not in seen:
             seen.append(item)
-    return {
-        "name": group_name,
-        "type": "select",
-        "proxies": seen,
-    }
+    return seen
+
+
+def _append_unique_list(target: dict[str, object], path: list[str], values: list[str]) -> None:
+    current: object = target
+    for key in path[:-1]:
+        if not isinstance(current, dict):
+            raise TypeError(f"Cannot merge overlay path: {'.'.join(path)}")
+        current = current.setdefault(key, {})
+    if not isinstance(current, dict):
+        raise TypeError(f"Cannot merge overlay path: {'.'.join(path)}")
+    key = path[-1]
+    existing = current.setdefault(key, [])
+    if not isinstance(existing, list):
+        raise TypeError(f"Overlay target is not a list: {'.'.join(path)}")
+    existing[:] = _dedupe([*existing, *values])
+
+
+def _apply_overlay(config: dict[str, object], overlay: dict[str, object]) -> list[str]:
+    prepend_rules = [str(item) for item in overlay.get("prepend-rules", [])]
+    dns_overlay = overlay.get("dns", {})
+    if isinstance(dns_overlay, dict):
+        fake_ip_filter = dns_overlay.get("fake-ip-filter", {})
+        if isinstance(fake_ip_filter, dict):
+            append_values = fake_ip_filter.get("append", [])
+            if isinstance(append_values, list):
+                _append_unique_list(config, ["dns", "fake-ip-filter"], [str(item) for item in append_values])
+    return prepend_rules
+
+
+def _build_rule_providers(mihomo_rules: Iterable[BuiltRule], public_base_url: str) -> dict[str, dict[str, object]]:
+    providers: dict[str, dict[str, object]] = {}
+    for item in mihomo_rules:
+        path = Path(item.path)
+        provider: dict[str, object] = {
+            "type": "http",
+            "behavior": item.behavior,
+            "interval": 43200,
+            "path": f"./providers/{path.name}",
+            "url": _provider_url(public_base_url, item.path),
+            "proxy": _g("RuleUpdate"),
+        }
+        if item.format == "text":
+            provider["format"] = "text"
+        providers[item.rule_id] = provider
+    return providers
+
+
+def _referenced_rule_provider_ids(rules: Iterable[str]) -> set[str]:
+    provider_ids: set[str] = set()
+    for rule in rules:
+        parts = str(rule).split(",")
+        if len(parts) >= 2 and parts[0] == "RULE-SET":
+            provider_ids.add(parts[1])
+    return provider_ids
+
+
+def _build_mihomo_groups(project_root: Path, node_names: list[str]) -> list[dict[str, object]]:
+    payload = _load_mihomo_template(project_root, "groups.yaml")
+    if not isinstance(payload, dict):
+        raise TypeError("config/mihomo/groups.yaml must contain a mapping")
+
+    groups: list[dict[str, object]] = []
+    for raw_group in payload.get("groups", []):
+        key = str(raw_group["key"])
+        group: dict[str, object] = {
+            "name": _g(key),
+            "type": raw_group["type"],
+        }
+        members = [_resolve_policy(str(item)) for item in raw_group.get("members", [])]
+        if raw_group.get("include_nodes"):
+            members.extend(node_names)
+        if group["type"] in {"select", "fallback", "url-test"}:
+            group["proxies"] = _dedupe(members)
+        for field in ("url", "interval", "tolerance", "timeout", "lazy"):
+            if field in raw_group:
+                group[field] = raw_group[field]
+        groups.append(group)
+    return groups
+
+
+def _build_shadowrocket_groups(project_root: Path, node_names: list[str]) -> list[dict[str, object]]:
+    groups: list[dict[str, object]] = []
+    for group in _build_mihomo_groups(project_root, node_names):
+        if group["name"] == _g("RuleUpdate"):
+            continue
+        members = [str(item) for item in group.get("proxies", [])]
+        shadow_group: dict[str, object] = {
+            "name": group["name"],
+            "type": group["type"],
+            "members": members,
+            "options": [],
+        }
+        options: list[str] = []
+        if group["type"] in {"fallback", "url-test"}:
+            if "url" in group:
+                options.append(f"url={group['url']}")
+            if "interval" in group:
+                options.append(f"interval={group['interval']}")
+            if group["type"] == "url-test" and "tolerance" in group:
+                options.append(f"tolerance={group['tolerance']}")
+        shadow_group["options"] = options
+        shadow_group["line"] = ",".join(
+            [f"{shadow_group['name']} = {shadow_group['type']}", *members, *options]
+        )
+        groups.append(shadow_group)
+    return groups
+
+
+def _build_mihomo_rules(project_root: Path, config: dict[str, object], overlay_name: str) -> list[str]:
+    payload = _load_mihomo_template(project_root, "rules.yaml")
+    if not isinstance(payload, dict):
+        raise TypeError("config/mihomo/rules.yaml must contain a mapping")
+
+    rules = [str(item) for item in payload.get("rules", [])]
+    overlay_path = project_root / "config" / "mihomo" / "overlays" / f"{overlay_name}.yaml"
+    if overlay_path.exists():
+        overlay = _load_yaml(overlay_path)
+        if not isinstance(overlay, dict):
+            raise TypeError(f"config/mihomo/overlays/{overlay_name}.yaml must contain a mapping")
+        rules = [*_apply_overlay(config, overlay), *rules]
+    return [_resolve_rule(rule) for rule in rules]
+
+
+def _build_shadowrocket_rules(project_root: Path, public_base_url: str, shadow_rules: dict[str, BuiltRule]) -> list[str]:
+    payload = _load_mihomo_template(project_root, "rules.yaml")
+    if not isinstance(payload, dict):
+        raise TypeError("config/mihomo/rules.yaml must contain a mapping")
+
+    rendered: list[str] = []
+    for raw_rule in payload.get("rules", []):
+        rule = str(raw_rule)
+        parts = rule.split(",")
+        rule_type = parts[0]
+        if rule_type in {"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "IP-CIDR", "IP-CIDR6"}:
+            if len(parts) < 3:
+                raise ValueError(f"Invalid Shadowrocket-compatible rule: {rule}")
+            parts[2] = _resolve_policy(parts[2])
+            rendered.append(",".join(parts[:3]))
+            continue
+        if rule_type == "RULE-SET":
+            if len(parts) < 3:
+                raise ValueError(f"Invalid RULE-SET rule: {rule}")
+            rule_id = parts[1]
+            if rule_id not in shadow_rules:
+                raise ValueError(f"Missing Shadowrocket rule artifact for rule-set: {rule_id}")
+            policy = _resolve_policy(parts[2])
+            rendered.append(f"RULE-SET,{_provider_url(public_base_url, shadow_rules[rule_id].path)},{policy}")
+            continue
+        if rule_type in {"MATCH", "FINAL"}:
+            if len(parts) < 2:
+                raise ValueError(f"Invalid final rule: {rule}")
+            rendered.append(f"FINAL,{_resolve_policy(parts[1])}")
+            continue
+        if rule_type == "GEOSITE":
+            geosite_rule_ids = {
+                "private": "private",
+                "github": "github",
+                "google": "google",
+                "cn": "cn",
+                "geolocation-!cn": "geolocation_non_cn",
+            }
+            if len(parts) >= 3 and parts[1] in geosite_rule_ids:
+                rule_id = geosite_rule_ids[parts[1]]
+                if rule_id not in shadow_rules:
+                    raise ValueError(f"Missing Shadowrocket rule artifact for geosite: {parts[1]}")
+                policy = _resolve_policy(parts[2])
+                rendered.append(f"RULE-SET,{_provider_url(public_base_url, shadow_rules[rule_id].path)},{policy}")
+                continue
+            continue
+        if rule_type == "GEOIP":
+            geoip_rule_ids = {
+                "private": "private",
+                "CN": "cn_ip",
+            }
+            if len(parts) >= 3 and parts[1] in geoip_rule_ids:
+                rule_id = geoip_rule_ids[parts[1]]
+                if rule_id not in shadow_rules:
+                    raise ValueError(f"Missing Shadowrocket rule artifact for geoip: {parts[1]}")
+                policy = _resolve_policy(parts[2])
+                rendered.append(f"RULE-SET,{_provider_url(public_base_url, shadow_rules[rule_id].path)},{policy}")
+                continue
+            continue
+        raise ValueError(f"Unsupported rule type for Shadowrocket: {rule}")
+    return _dedupe(rendered)
 
 
 def render_mihomo(
@@ -56,144 +263,31 @@ def render_mihomo(
     public_base_url: str,
     nodes: list[ProxyNode],
     manifest: dict[str, list[BuiltRule]],
+    overlay_name: str = "macos",
+    output_name: str = "mihomo-full.yaml",
 ) -> None:
     env = Environment(loader=FileSystemLoader(str(project_root / "templates")), autoescape=False)
     template = env.get_template("mihomo.yaml.j2")
 
     mihomo_rules = manifest["mihomo"]
-    lookup = _rule_lookup(mihomo_rules)
     node_names = [node.name for node in nodes]
-    providers: dict[str, dict[str, object]] = {}
-    for item in mihomo_rules:
-        path = Path(item.path)
-        provider: dict[str, object] = {
-            "type": "http",
-            "behavior": item.behavior,
-            "interval": 21600,
-            "path": f"./providers/{path.name}",
-            "url": _provider_url(public_base_url, item.path),
-        }
-        if item.format == "text":
-            provider["format"] = "text"
-        providers[item.rule_id] = provider
-
-    config = {
-        "mixed-port": 7890,
-        "allow-lan": False,
-        "mode": "rule",
-        "log-level": "info",
-        "ipv6": True,
-        "geodata-mode": True,
-        "geodata-loader": "memconservative",
-        "geo-auto-update": True,
-        "geo-update-interval": 24,
-        "geox-url": {
-            "geoip": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat",
-            "geosite": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat",
-            "mmdb": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb",
-            "asn": "https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb",
-        },
-        "unified-delay": True,
-        "profile": {"store-selected": True},
-        "dns": {
-            "enable": True,
-            "ipv6": True,
-            "enhanced-mode": "fake-ip",
-            "fake-ip-range": "198.18.0.1/16",
-            "default-nameserver": ["223.5.5.5", "119.29.29.29"],
-            "nameserver": [
-                "https://dns.alidns.com/dns-query",
-                "https://doh.pub/dns-query",
-                "https://1.1.1.1/dns-query",
-                "https://dns.google/dns-query",
-            ],
-            "proxy-server-nameserver": [
-                "https://dns.alidns.com/dns-query",
-                "https://doh.pub/dns-query",
-                "https://1.1.1.1/dns-query",
-                "https://dns.google/dns-query",
-            ],
-            "nameserver-policy": {
-                "geosite:cn,private,apple-cn,microsoft@cn": [
-                    "https://dns.alidns.com/dns-query",
-                    "https://doh.pub/dns-query",
-                ],
-                "geosite:geolocation-!cn": [
-                    "https://1.1.1.1/dns-query",
-                    "https://dns.google/dns-query",
-                ],
-            },
-            "fake-ip-filter": [
-                "*.local",
-                "localhost",
-                "*.lan",
-                "captive.apple.com",
-                "time.apple.com",
-                "mesu.apple.com",
-                "swscan.apple.com",
-            ],
-        },
-        "proxies": [node.to_mihomo_proxy() for node in nodes],
-        "proxy-groups": [
-            {
-                "name": _g("AUTO"),
-                "type": "url-test",
-                "url": "http://www.gstatic.com/generate_204",
-                "interval": 300,
-                "proxies": node_names,
-            },
-            _build_proxy_group(_g("PROXY"), [_g("AUTO"), "DIRECT"], node_names),
-            _build_proxy_group(_g("AI"), [_g("PROXY"), _g("AUTO"), "DIRECT"], node_names),
-            _build_proxy_group(_g("GitHub"), [_g("PROXY"), _g("AUTO"), "DIRECT"], node_names),
-            _build_proxy_group(_g("Apple"), ["DIRECT", _g("PROXY"), _g("AUTO")], node_names),
-            _build_proxy_group(_g("Microsoft"), ["DIRECT", _g("PROXY"), _g("AUTO")], node_names),
-            _build_proxy_group(_g("Telegram"), [_g("PROXY"), _g("AUTO"), "DIRECT"], node_names),
-            _build_proxy_group(_g("Streaming"), [_g("PROXY"), _g("AUTO"), "DIRECT"], node_names),
-            _build_proxy_group(_g("Download"), ["DIRECT", _g("PROXY"), _g("AUTO")], node_names),
-            _build_proxy_group(_g("Final"), [_g("PROXY"), "DIRECT", _g("AUTO")], node_names),
-        ],
-        "rule-providers": providers,
-        "rules": [
-            "RULE-SET,private,DIRECT",
-            "RULE-SET,lan_non_ip,DIRECT",
-            "RULE-SET,lan_ip,DIRECT",
-            "RULE-SET,ads,REJECT",
-            "RULE-SET,tencent_direct,DIRECT",
-            "RULE-SET,alibaba_direct,DIRECT",
-            "RULE-SET,baidu_direct,DIRECT",
-            "RULE-SET,weibo_direct,DIRECT",
-            "RULE-SET,xiaohongshu_direct,DIRECT",
-            "RULE-SET,xiaomi_direct,DIRECT",
-            "RULE-SET,huawei_direct,DIRECT",
-            "RULE-SET,wechat_direct,DIRECT",
-            "RULE-SET,bilibili_direct,DIRECT",
-            "RULE-SET,neteasemusic_direct,DIRECT",
-            "RULE-SET,china_media_direct,DIRECT",
-            "RULE-SET,apple_cdn,DIRECT",
-            "RULE-SET,apple_cn,DIRECT",
-            "RULE-SET,microsoft_cdn,DIRECT",
-            f"RULE-SET,download_domainset,{_g('Download')}",
-            f"RULE-SET,download_non_ip,{_g('Download')}",
-            "RULE-SET,domestic_non_ip,DIRECT",
-            "RULE-SET,domestic_ip,DIRECT",
-            "RULE-SET,cn,DIRECT",
-            "RULE-SET,cn_ip,DIRECT",
-            f"RULE-SET,ai,{_g('AI')}",
-            f"RULE-SET,apple_services,{_g('Apple')}",
-            f"RULE-SET,microsoft,{_g('Microsoft')}",
-            f"RULE-SET,github,{_g('GitHub')}",
-            f"RULE-SET,google,{_g('PROXY')}",
-            f"RULE-SET,telegram_non_ip,{_g('Telegram')}",
-            f"RULE-SET,telegram_ip,{_g('Telegram')}",
-            f"RULE-SET,stream_non_ip,{_g('Streaming')}",
-            f"RULE-SET,stream_ip,{_g('Streaming')}",
-            f"RULE-SET,geolocation_non_cn,{_g('PROXY')}",
-            f"MATCH,{_g('Final')}",
-        ],
+    base_config = _load_mihomo_template(project_root, "base.yaml")
+    if not isinstance(base_config, dict):
+        raise TypeError("config/mihomo/base.yaml must contain a mapping")
+    config = deepcopy(base_config)
+    config["proxies"] = [node.to_mihomo_proxy() for node in nodes]
+    config["proxy-groups"] = _build_mihomo_groups(project_root, node_names)
+    config["rules"] = _build_mihomo_rules(project_root, config, overlay_name)
+    all_providers = _build_rule_providers(mihomo_rules, public_base_url)
+    referenced_provider_ids = _referenced_rule_provider_ids(config["rules"])
+    config["rule-providers"] = {
+        provider_id: provider
+        for provider_id, provider in all_providers.items()
+        if provider_id in referenced_provider_ids
     }
     body_yaml = yaml.safe_dump(config, allow_unicode=True, sort_keys=False, width=120)
     rendered = template.render(body_yaml=body_yaml)
-    (output_root / "mihomo-full.yaml").write_text(rendered, encoding="utf-8")
+    (output_root / output_name).write_text(rendered, encoding="utf-8")
 
 
 def render_shadowrocket(
@@ -213,62 +307,8 @@ def render_shadowrocket(
         "generated_comment": "Generated by mihomo-subscription-builder. Edit templates instead of this file.",
         "fallback_subscription_url": _provider_url(public_base_url, "shadowrocket-subscription.txt"),
         "proxy_lines": [node.to_shadowrocket_proxy_line() for node in nodes],
-        "groups": [
-            {"name": _g("PROXY"), "type": "select", "members": [_g("AUTO"), "DIRECT", *proxy_names]},
-            {
-                "name": _g("AUTO"),
-                "type": "url-test",
-                "members": proxy_names,
-                "url": "http://www.gstatic.com/generate_204",
-                "interval": 300,
-                "tolerance": 50,
-            },
-            {"name": _g("AI"), "type": "select", "members": [_g("PROXY"), _g("AUTO"), "DIRECT", *proxy_names]},
-            {"name": _g("GitHub"), "type": "select", "members": [_g("PROXY"), _g("AUTO"), "DIRECT", *proxy_names]},
-            {"name": _g("Apple"), "type": "select", "members": ["DIRECT", _g("PROXY"), _g("AUTO"), *proxy_names]},
-            {"name": _g("Microsoft"), "type": "select", "members": ["DIRECT", _g("PROXY"), _g("AUTO"), *proxy_names]},
-            {"name": _g("Telegram"), "type": "select", "members": [_g("PROXY"), _g("AUTO"), "DIRECT", *proxy_names]},
-            {"name": _g("Streaming"), "type": "select", "members": [_g("PROXY"), _g("AUTO"), "DIRECT", *proxy_names]},
-            {"name": _g("Download"), "type": "select", "members": ["DIRECT", _g("PROXY"), _g("AUTO"), *proxy_names]},
-            {"name": _g("Final"), "type": "select", "members": [_g("PROXY"), "DIRECT", _g("AUTO"), *proxy_names]},
-        ],
-        "rules": [
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['private'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['lan_non_ip'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['lan_ip'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['ads'].path)},REJECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['tencent_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['alibaba_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['baidu_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['weibo_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['xiaohongshu_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['xiaomi_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['huawei_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['wechat_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['bilibili_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['neteasemusic_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['china_media_direct'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['apple_cdn'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['apple_cn'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['microsoft_cdn'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['download_domainset'].path)},{_g('Download')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['download_non_ip'].path)},{_g('Download')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['domestic_non_ip'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['domestic_ip'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['cn'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['cn_ip'].path)},DIRECT",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['ai'].path)},{_g('AI')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['apple_services'].path)},{_g('Apple')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['microsoft'].path)},{_g('Microsoft')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['github'].path)},{_g('GitHub')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['google'].path)},{_g('PROXY')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['telegram_non_ip'].path)},{_g('Telegram')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['telegram_ip'].path)},{_g('Telegram')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['stream_non_ip'].path)},{_g('Streaming')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['stream_ip'].path)},{_g('Streaming')}",
-            f"RULE-SET,{_provider_url(public_base_url, shadow_rules['geolocation_non_cn'].path)},{_g('PROXY')}",
-            f"FINAL,{_g('Final')}",
-        ],
+        "groups": _build_shadowrocket_groups(project_root, proxy_names),
+        "rules": _build_shadowrocket_rules(project_root, public_base_url, shadow_rules),
     }
     rendered = template.render(**context)
     (output_root / "shadowrocket.conf").write_text(rendered + "\n", encoding="utf-8")
@@ -277,6 +317,7 @@ def render_shadowrocket(
 def render_index(*, output_root: Path, public_base_url: str) -> None:
     links = [
         ("Mihomo subscription", f"{public_base_url}/mihomo-full.yaml"),
+        ("Mihomo Android subscription", f"{public_base_url}/mihomo-android.yaml"),
         ("Shadowrocket config", f"{public_base_url}/shadowrocket.conf"),
         ("Shadowrocket node subscription", f"{public_base_url}/shadowrocket-subscription.txt"),
     ]

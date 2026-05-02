@@ -6,8 +6,8 @@ project targets two outputs:
 - `mihomo-full.yaml` for Mihomo-compatible clients
 - `shadowrocket.conf` plus `shadowrocket-subscription.txt` for Shadowrocket
 
-The upstream node source is expected to be a raw subscription endpoint like the
-current `vms.217777.xyz` feed behind the local lightweight `美西` profile.
+The upstream node source is expected to be a raw subscription endpoint provided
+through the private `UPSTREAM_SUB_URL` secret.
 
 ## Repository Identity
 
@@ -27,16 +27,51 @@ current `vms.217777.xyz` feed behind the local lightweight `美西` profile.
 
 ## Rule Strategy
 
-This project intentionally borrows and composes multiple GitHub-maintained rule sources instead of hand-maintaining a giant local ruleset:
+This project is intentionally a thin Mihomo subscription assembler, not a full
+hand-maintained routing rulebase. The long-term shape is:
 
 - `MetaCubeX/meta-rules-dat` for the Mihomo geosite/geoip backbone
-- `SukkaW/Surge` for Apple, Microsoft, download, LAN, domestic, Telegram, AI, and streaming rule sets
-- `blackmatrix7/ios_rule_script` for selective high-value domestic service supplements such as WeChat, BiliBili, NetEaseMusic, and China media
-- `blackmatrix7/ios_rule_script` for selective high-value domestic service supplements such as Tencent, Alibaba, Baidu, Weibo, XiaoHongShu, XiaoMi, Huawei, WeChat, BiliBili, NetEaseMusic, and China media
+- `SukkaW/Surge` mirror rule sets for AI, Apple, Microsoft, Telegram, streaming,
+  download, LAN, domestic, direct, and global supplemental rules
+- a very small local overlay for macOS and Android process/package DIRECT rules
+- policy validation that blocks unsafe rule ordering and proxy-group defaults
 
-For Mihomo clients, the generated config also enables `geodata` auto-update against MetaCubeX GEO artifacts. This is treated as a lower-level GEO data base for DNS and future GEO rules, not as a replacement for the self-hosted rule-provider layer.
+For Mihomo clients, the generated config uses `GEOSITE` / `GEOIP` for large
+MetaCubeX categories such as `cn`, `geolocation-!cn`, `github`, `google`, and
+`CN` IPs. That keeps those large rulebases in Mihomo's geodata loader instead of
+loading them as normal `rule-providers` at startup.
 
-The update model is therefore simple: this repo republishes upstream rules on every workflow run, while keeping your own stable subscription URLs.
+The update model is therefore simple: upstream supplemental rule sets are
+mirrored into `dist/rules/`, `dist/mihomo-full.yaml` references only the
+providers that are actually used by its route order, and Mihomo can also refresh
+providers through the `🔄 规则更新` policy group. Shadowrocket cannot consume
+Mihomo `GEOSITE` / `GEOIP` syntax directly, so its renderer translates the same
+route slots back into the mirrored Shadowrocket rule files.
+
+The rules are kept in reviewable YAML templates under `config/mihomo/`:
+
+- `base.yaml` controls DNS, IPv6, geodata, and sniffer behavior
+- `groups.yaml` controls proxy-group defaults
+- `rules.yaml` controls the stable route order
+- `overlays/macos.yaml` and `overlays/android.yaml` keep device-specific direct rules
+- `validation.yaml` defines CI policy checks
+- `../route-expectations.yaml` defines representative domain routing expectations
+
+The default profile is an always-on profile: domestic domains, domestic IPs, and
+known Chinese apps/video services go DIRECT, specific foreign services are
+pinned before broad download rules, `Download`/`Final` do not default to
+DIRECT, and IPv6 is disabled by default for networks where domestic AAAA routes
+are not reliable.
+
+Shadowrocket uses the same group and rule templates where the syntax overlaps.
+Mihomo-only `GEOSITE` rules are translated into explicit rule-provider or pinned
+domain rules for Shadowrocket instead of maintaining a separate hand-written
+iOS rule order.
+
+Important: `mihomo-full.yaml` contains proxy nodes. Publishing `dist/` to
+public GitHub Pages exposes those nodes to anyone with the URL. For private use,
+prefer a local Clash Verge profile, a private static host, or a self-hosted
+subscription service with access control.
 
 ## Local Usage
 
@@ -46,17 +81,19 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
 
-export UPSTREAM_SUB_URL="https://vms.217777.xyz:6942/sub/your-token"
+export UPSTREAM_SUB_URL="https://example.com/sub/your-token"
 export PUBLIC_BASE_URL="https://suehn.github.io/mihomo-subscription-builder"
 
 python -m subscription_builder.cli build-all
 python -m subscription_builder.cli validate
+python -m subscription_builder.cli smoke-runtime
 python -m pytest
 ```
 
 Generated files land in `dist/`:
 
 - `dist/mihomo-full.yaml`
+- `dist/mihomo-android.yaml`
 - `dist/shadowrocket.conf`
 - `dist/shadowrocket-subscription.txt`
 - `dist/shadowrocket-uris.txt`
@@ -85,3 +122,24 @@ This project therefore publishes both:
 If a future Shadowrocket build rejects the generated local VLESS line inside
 `shadowrocket.conf`, import `shadowrocket-subscription.txt` first, then keep
 using `shadowrocket.conf` for rules and groups.
+
+## Validation Coverage
+
+`python -m subscription_builder.cli validate` checks:
+
+- Mihomo syntax with `verge-mihomo -t` when Clash Verge Rev is installed
+- Mihomo and Shadowrocket group defaults, final rule placement, and rule order
+- representative domain routing from `config/route-expectations.yaml`, including
+  GitHub assets, AI domains, Telegram, YouTube/Netflix, common Chinese video
+  sites, domestic mirrors, Microsoft CDN, JetBrains downloads, and npm registry
+
+`python -m subscription_builder.cli smoke-runtime` starts temporary Mihomo
+instances on high local ports, waits for rule providers to finish loading, and
+requests representative domestic/foreign URLs through the generated mixed-port.
+This catches runtime failures that `-t` cannot see. During a fresh start, large
+providers may report `ruleCount: 0` briefly; the smoke waits for readiness before
+testing traffic.
+
+The default route set intentionally does not enable ad blocking. Blocking rules
+are mirrored as artifacts, but keeping them out of the default route order
+reduces the chance of breaking domestic apps or login flows during always-on use.

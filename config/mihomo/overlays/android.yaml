@@ -1,0 +1,22 @@
+prepend-rules:
+  - PROCESS-NAME,com.tencent.mm,DIRECT
+  - PROCESS-NAME,com.tencent.mobileqq,DIRECT
+  - PROCESS-NAME,tv.danmaku.bili,DIRECT
+  - PROCESS-NAME,com.bilibili.app.in,DIRECT
+  - PROCESS-NAME,com.qiyi.video,DIRECT
+  - PROCESS-NAME,com.tencent.qqlive,DIRECT
+  - PROCESS-NAME,com.youku.phone,DIRECT
+  - PROCESS-NAME,com.ss.android.ugc.aweme,DIRECT
+  - PROCESS-NAME,com.ss.android.ugc.aweme.lite,DIRECT
+  - PROCESS-NAME,com.smile.gifmaker,DIRECT
+  - PROCESS-NAME,com.hunantv.imgo.activity,DIRECT
+  - PROCESS-NAME,com.netease.cloudmusic,DIRECT
+  - PROCESS-NAME,com.taobao.taobao,DIRECT
+  - PROCESS-NAME,com.jingdong.app.mall,DIRECT
+  - PROCESS-NAME,com.xunmeng.pinduoduo,DIRECT
+dns:
+  fake-ip-filter:
+    append:
+      - +.qq.com
+      - +.weixin.qq.com
+      - +.bilibili.com

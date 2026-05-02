@@ -1,0 +1,45 @@
+last_rule_prefix: MATCH,
+ipv6_disabled: true
+foreign_groups_no_direct_first:
+  - PROXY
+  - Final
+  - GitHub
+  - AI
+  - Microsoft
+  - Telegram
+  - Streaming
+  - Download
+  - RuleUpdate
+rule_order:
+  - before: DOMAIN-SUFFIX,github.com
+    after: RULE-SET,download_domainset
+  - before: GEOSITE,github
+    after: RULE-SET,download_domainset
+  - before: RULE-SET,ai
+    after: RULE-SET,download_domainset
+  - before: RULE-SET,apple_intelligence
+    after: RULE-SET,download_domainset
+  - before: RULE-SET,microsoft
+    after: RULE-SET,download_domainset
+  - before: RULE-SET,microsoft_cdn
+    after: RULE-SET,download_domainset
+  - before: RULE-SET,apple_cdn
+    after: RULE-SET,download_domainset
+  - before: GEOSITE,cn
+    after: RULE-SET,download_domainset
+  - before: RULE-SET,download_domainset
+    after: GEOIP,CN
+  - before: GEOSITE,geolocation-!cn
+    after: GEOIP,CN
+required_rules:
+  - DOMAIN-SUFFIX,github.com
+  - DOMAIN-SUFFIX,objects.githubusercontent.com
+  - DOMAIN-SUFFIX,chatgpt.com
+  - DOMAIN-SUFFIX,claude.ai
+  - RULE-SET,apple_intelligence
+  - RULE-SET,direct_non_ip
+  - RULE-SET,global_non_ip
+  - GEOSITE,github
+  - GEOSITE,google
+  - GEOIP,CN
+  - MATCH,

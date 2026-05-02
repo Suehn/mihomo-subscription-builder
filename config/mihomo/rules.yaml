@@ -1,0 +1,89 @@
+rules:
+  - GEOSITE,private,DIRECT
+  - GEOIP,private,DIRECT,no-resolve
+  - RULE-SET,lan_non_ip,DIRECT
+
+  - RULE-SET,tencent_direct,DIRECT
+  - RULE-SET,alibaba_direct,DIRECT
+  - RULE-SET,baidu_direct,DIRECT
+  - RULE-SET,weibo_direct,DIRECT
+  - RULE-SET,xiaohongshu_direct,DIRECT
+  - RULE-SET,xiaomi_direct,DIRECT
+  - RULE-SET,huawei_direct,DIRECT
+  - RULE-SET,wechat_direct,DIRECT
+  - RULE-SET,bilibili_direct,DIRECT
+  - RULE-SET,neteasemusic_direct,DIRECT
+  - RULE-SET,china_media_direct,DIRECT
+
+  - DOMAIN-SUFFIX,github.com,@GitHub
+  - DOMAIN-SUFFIX,github.io,@GitHub
+  - DOMAIN-SUFFIX,github.dev,@GitHub
+  - DOMAIN-SUFFIX,githubassets.com,@GitHub
+  - DOMAIN-SUFFIX,githubusercontent.com,@GitHub
+  - DOMAIN-SUFFIX,objects.githubusercontent.com,@GitHub
+  - DOMAIN-SUFFIX,ghcr.io,@GitHub
+
+  - DOMAIN-SUFFIX,openai.com,@AI
+  - DOMAIN-SUFFIX,chatgpt.com,@AI
+  - DOMAIN-SUFFIX,oaistatic.com,@AI
+  - DOMAIN-SUFFIX,oaiusercontent.com,@AI
+  - DOMAIN-SUFFIX,anthropic.com,@AI
+  - DOMAIN-SUFFIX,claude.ai,@AI
+  - DOMAIN-SUFFIX,claude.com,@AI
+  - DOMAIN-SUFFIX,gemini.google.com,@AI
+
+  - DOMAIN-SUFFIX,mirrors.aliyun.com,DIRECT
+  - DOMAIN-SUFFIX,mirrors.cloud.tencent.com,DIRECT
+  - DOMAIN-SUFFIX,mirrors.tencent.com,DIRECT
+  - DOMAIN-SUFFIX,mirrors.huaweicloud.com,DIRECT
+  - DOMAIN-SUFFIX,mirrors.tuna.tsinghua.edu.cn,DIRECT
+  - DOMAIN-SUFFIX,mirrors.ustc.edu.cn,DIRECT
+  - DOMAIN-SUFFIX,mirrors.bfsu.edu.cn,DIRECT
+  - DOMAIN-SUFFIX,mirrors.sjtug.sjtu.edu.cn,DIRECT
+
+  - DOMAIN,registry.npmjs.org,@Download
+  - DOMAIN,replicate.npmjs.com,@Download
+  - DOMAIN,registry.npmjs.com,@Download
+  - DOMAIN,skimdb.npmjs.com,@Download
+  - DOMAIN,download.jetbrains.com,@Download
+
+  - RULE-SET,ai,@AI
+  - RULE-SET,apple_intelligence,@AI
+  - GEOSITE,github,@GitHub
+  - RULE-SET,telegram_non_ip,@Telegram
+
+  - RULE-SET,apple_cn,DIRECT
+  - RULE-SET,apple_cdn,DIRECT
+  - RULE-SET,apple_services,@Apple
+  - GEOSITE,apple,@Apple
+
+  - RULE-SET,microsoft_cdn,DIRECT
+  - GEOSITE,microsoft@cn,DIRECT
+  - RULE-SET,microsoft,@Microsoft
+  - GEOSITE,microsoft,@Microsoft
+
+  - GEOSITE,youtube,@Streaming
+  - GEOSITE,netflix,@Streaming
+  - GEOSITE,disney,@Streaming
+  - GEOSITE,spotify,@Streaming
+  - GEOSITE,tiktok,@Streaming
+  - RULE-SET,stream_non_ip,@Streaming
+  - GEOSITE,google,@PROXY
+
+  - RULE-SET,direct_non_ip,DIRECT
+  - RULE-SET,domestic_non_ip,DIRECT
+  - GEOSITE,cn,DIRECT
+
+  - RULE-SET,download_domainset,@Download
+  - RULE-SET,download_non_ip,@Download
+
+  - RULE-SET,global_non_ip,@PROXY
+  - GEOSITE,geolocation-!cn,@PROXY
+
+  - RULE-SET,telegram_ip,@Telegram,no-resolve
+  - RULE-SET,stream_ip,@Streaming,no-resolve
+  - RULE-SET,lan_ip,DIRECT,no-resolve
+  - RULE-SET,domestic_ip,DIRECT,no-resolve
+  - GEOIP,CN,DIRECT,no-resolve
+
+  - MATCH,@Final

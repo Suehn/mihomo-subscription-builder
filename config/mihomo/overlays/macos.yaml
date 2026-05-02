@@ -1,0 +1,13 @@
+prepend-rules:
+  - PROCESS-NAME,WeChat,DIRECT
+  - PROCESS-NAME,WeChatAppEx,DIRECT
+  - PROCESS-NAME,QQ,DIRECT
+  - PROCESS-NAME,NetEaseMusic,DIRECT
+  - PROCESS-NAME,UURemote,DIRECT
+  - PROCESS-NAME,UURemoteServer,DIRECT
+dns:
+  fake-ip-filter:
+    append:
+      - +.work.weixin.qq.com
+      - +.weixin.qq.com
+      - +.qq.com
