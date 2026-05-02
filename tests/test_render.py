@@ -184,13 +184,14 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     microsoft_idx = rules.index("RULE-SET,microsoft,🪟 Microsoft")
     google_idx = rules.index("GEOSITE,google,🚀 代理")
     download_idx = rules.index("RULE-SET,download_domainset,⬇️ 下载")
-    cn_ip_idx = rules.index("GEOIP,CN,DIRECT,no-resolve")
+    cn_ip_idx = rules.index("GEOIP,CN,DIRECT")
 
     assert cn_idx < download_idx
     assert github_idx < download_idx
     assert microsoft_idx < download_idx
     assert google_idx < download_idx
     assert download_idx < cn_ip_idx
+    assert "GEOIP,CN,DIRECT,no-resolve" not in rules
 
 
 def test_mihomo_only_renders_rule_providers_referenced_by_rules(tmp_path: Path) -> None:

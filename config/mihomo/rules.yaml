@@ -84,6 +84,6 @@ rules:
   - RULE-SET,stream_ip,@Streaming,no-resolve
   - RULE-SET,lan_ip,DIRECT,no-resolve
   - RULE-SET,domestic_ip,DIRECT,no-resolve
-  - GEOIP,CN,DIRECT,no-resolve
+  - GEOIP,CN,DIRECT
 
   - MATCH,@Final
