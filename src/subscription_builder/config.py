@@ -10,8 +10,9 @@ import yaml
 @dataclass(slots=True)
 class RuleOutput:
     client: str
-    source_url: str
     path: str
+    source_url: str | None = None
+    source_file: str | None = None
     behavior: str | None = None
     format: str | None = None
     transform: str | None = None
@@ -54,8 +55,9 @@ def load_project_config(config_path: Path) -> ProjectConfig:
         for client_name, client_payload in item["outputs"].items():
             outputs[client_name] = RuleOutput(
                 client=client_name,
-                source_url=client_payload["source_url"],
                 path=client_payload["path"],
+                source_url=client_payload.get("source_url"),
+                source_file=client_payload.get("source_file"),
                 behavior=client_payload.get("behavior"),
                 format=client_payload.get("format"),
                 transform=client_payload.get("transform"),
@@ -74,4 +76,3 @@ def load_project_config(config_path: Path) -> ProjectConfig:
         user_agent=raw["network"]["user_agent"],
         rules=rules,
     )
-

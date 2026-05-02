@@ -38,7 +38,7 @@ def _build_all(args: argparse.Namespace) -> int:
     nodes = fetch_and_parse_nodes(upstream_url, config.user_agent)
     write_nodes_json(nodes, build_root / "nodes.json")
     write_shadowrocket_uri_artifacts(nodes, output_root)
-    manifest = build_rules(config, output_root)
+    manifest = build_rules(config, output_root, project_root=project_root)
     write_rule_manifest(manifest, build_root / "rule-manifest.json")
     render_mihomo(
         project_root=project_root,

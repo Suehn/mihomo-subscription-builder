@@ -1,11 +1,14 @@
 prepend-rules:
   - DOMAIN,wpad,REJECT
-  - PROCESS-NAME,WeChat,DIRECT
-  - PROCESS-NAME,WeChatAppEx,DIRECT
-  - PROCESS-NAME,QQ,DIRECT
   - PROCESS-NAME,NetEaseMusic,DIRECT
   - PROCESS-NAME,UURemote,DIRECT
   - PROCESS-NAME,UURemoteServer,DIRECT
+insert-after:
+  - anchor: RULE-SET,telegram_non_ip
+    rules:
+      - PROCESS-NAME,WeChat,DIRECT
+      - PROCESS-NAME,WeChatAppEx,DIRECT
+      - PROCESS-NAME,QQ,DIRECT
 dns:
   fake-ip-filter:
     append:

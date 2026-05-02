@@ -36,6 +36,7 @@ RULE_IDS = [
     "microsoft",
     "github",
     "google",
+    "developer_global",
     "telegram_non_ip",
     "stream_non_ip",
     "download_domainset",
@@ -57,11 +58,21 @@ def _rule(rule_id: str) -> BuiltRule:
         rule_id=rule_id,
         client="mihomo",
         policy="DIRECT",
-        path=f"rules/mihomo/{rule_id}.txt",
+        path=f"rules/mihomo/{_rule_path_name(rule_id)}.txt",
         source_url=f"https://example.test/{rule_id}.txt",
         behavior="classical",
         format="text",
     )
+
+
+def _rule_path_name(rule_id: str) -> str:
+    return {
+        "ads": "category-ads-all",
+        "direct_non_ip": "direct",
+        "global_non_ip": "global",
+        "lan_non_ip": "lan",
+        "domestic_non_ip": "domestic",
+    }.get(rule_id, rule_id)
 
 
 def _render_config(tmp_path: Path) -> dict[str, object]:
@@ -95,6 +106,7 @@ def _render_shadowrocket(tmp_path: Path) -> str:
             "cn_ip": "cn_ip.list",
             "github": "github.list",
             "google": "google.list",
+            "developer_global": "developer_global.conf",
             "ads": "category-ads-all.list",
             "wechat_direct": "wechat.list",
             "bilibili_direct": "bilibili.list",
@@ -171,6 +183,8 @@ def test_mihomo_download_and_fallback_groups_prefer_proxy(tmp_path: Path) -> Non
 
     assert config["proxy-groups"][0]["name"] == "🚀 代理"
     assert groups["🪟 Microsoft"][:3] == ["🚀 代理", "🔁 故障转移", "DIRECT"]
+    assert groups["🔎 Google"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
+    assert groups["🛠 Developer"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
     assert groups["⬇️ 下载"][:3] == ["🔁 故障转移", "🚀 代理", "⚡ 自动选择"]
     assert groups["🌐 兜底"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
 
@@ -182,7 +196,8 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     cn_idx = rules.index("GEOSITE,cn,DIRECT")
     github_idx = rules.index("GEOSITE,github,💻 GitHub")
     microsoft_idx = rules.index("RULE-SET,microsoft,🪟 Microsoft")
-    google_idx = rules.index("GEOSITE,google,🚀 代理")
+    google_idx = rules.index("GEOSITE,google,🔎 Google")
+    developer_idx = rules.index("RULE-SET,developer_global,🛠 Developer")
     download_idx = rules.index("RULE-SET,download_domainset,⬇️ 下载")
     cn_ip_idx = rules.index("GEOIP,CN,DIRECT")
 
@@ -190,6 +205,9 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     assert github_idx < download_idx
     assert microsoft_idx < download_idx
     assert google_idx < download_idx
+    assert developer_idx < download_idx
+    assert rules.index("DOMAIN-SUFFIX,npmmirror.com,DIRECT") < developer_idx
+    assert rules.index("DOMAIN-SUFFIX,goproxy.cn,DIRECT") < developer_idx
     assert download_idx < cn_ip_idx
     assert "GEOIP,CN,DIRECT,no-resolve" not in rules
 
@@ -205,24 +223,32 @@ def test_mihomo_only_renders_rule_providers_referenced_by_rules(tmp_path: Path) 
     assert "geolocation_non_cn" not in providers
     assert "private" not in providers
     assert "download_domainset" in providers
+    assert "developer_global" in providers
     assert "bilibili_direct" in providers
 
 
 def test_mihomo_adds_device_overlay_rules_and_rule_update_proxy(tmp_path: Path) -> None:
     config = _render_config(tmp_path)
+    rules = config["rules"]
 
     assert config["rules"][:5] == [
         "DOMAIN,wpad,REJECT",
-        "PROCESS-NAME,WeChat,DIRECT",
-        "PROCESS-NAME,WeChatAppEx,DIRECT",
-        "PROCESS-NAME,QQ,DIRECT",
         "PROCESS-NAME,NetEaseMusic,DIRECT",
+        "PROCESS-NAME,UURemote,DIRECT",
+        "PROCESS-NAME,UURemoteServer,DIRECT",
+        "GEOSITE,private,DIRECT",
     ]
+    assert rules.index("DOMAIN-SUFFIX,github.com,💻 GitHub") < rules.index("PROCESS-NAME,WeChat,DIRECT")
+    assert rules.index("DOMAIN-SUFFIX,chatgpt.com,🤖 AI") < rules.index("PROCESS-NAME,WeChat,DIRECT")
+    assert rules.index("GEOSITE,google,🔎 Google") < rules.index("PROCESS-NAME,WeChat,DIRECT")
+    assert rules.index("RULE-SET,telegram_non_ip,✈️ Telegram") < rules.index("PROCESS-NAME,WeChat,DIRECT")
     assert config["rule-providers"]["download_domainset"]["proxy"] == "🔄 规则更新"
     assert config["rule-providers"]["apple_intelligence"]["proxy"] == "🔄 规则更新"
+    assert config["rule-providers"]["developer_global"]["proxy"] == "🔄 规则更新"
     assert "RULE-SET,apple_intelligence,🤖 AI" in config["rules"]
     assert "RULE-SET,direct_non_ip,DIRECT" in config["rules"]
     assert "RULE-SET,global_non_ip,🚀 代理" in config["rules"]
+    assert "RULE-SET,developer_global,🛠 Developer" in config["rules"]
 
 
 def test_mihomo_rendered_config_passes_policy_validation(tmp_path: Path) -> None:
@@ -240,7 +266,8 @@ def test_shadowrocket_routes_specific_foreign_services_before_download_and_cn_ip
     github_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/github.list,💻 GitHub")
     ai_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/ai.conf,🤖 AI")
     microsoft_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/microsoft.conf,🪟 Microsoft")
-    google_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/google.list,🚀 代理")
+    google_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/google.list,🔎 Google")
+    developer_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/developer_global.conf,🛠 Developer")
     download_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/download_domainset.conf,⬇️ 下载")
     cn_ip_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/cn_ip.list,DIRECT")
 
@@ -251,6 +278,7 @@ def test_shadowrocket_routes_specific_foreign_services_before_download_and_cn_ip
     assert ai_idx < download_idx
     assert microsoft_idx < download_idx
     assert google_idx < download_idx
+    assert developer_idx < download_idx
     assert download_idx < cn_ip_idx
 
 
@@ -275,16 +303,18 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     assert group_lines[0] == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
     assert next(line for line in lines if line.startswith("🚀 代理 = ")) == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
     assert "🔁 故障转移 = fallback,node-a,url=https://www.gstatic.com/generate_204,interval=300" in lines
-    assert "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a" in lines
     assert "🤖 AI = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
-    assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,DIRECT,node-a" in lines
-    assert "🌐 兜底 = select,🚀 代理,🔁 故障转移,⚡ 自动选择,DIRECT,node-a" in lines
+    assert "🔎 Google = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
+    assert "🛠 Developer = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a" in lines
+    assert "⬇️ 下载 = select,DIRECT,🔁 故障转移,🚀 代理,⚡ 自动选择,node-a" in lines
+    assert "🌐 兜底 = select,DIRECT,🚀 代理,🔁 故障转移,⚡ 自动选择,node-a" in lines
 
 
 def test_shadowrocket_includes_new_sukkaw_layers_and_passes_policy_validation(tmp_path: Path) -> None:
     text = _render_shadowrocket(tmp_path)
 
     assert "RULE-SET,https://example.test/sub/rules/shadowrocket/apple_intelligence.conf,🤖 AI" in text
+    assert "RULE-SET,https://example.test/sub/rules/shadowrocket/developer_global.conf,🛠 Developer" in text
     assert "RULE-SET,https://example.test/sub/rules/shadowrocket/direct.conf,DIRECT" in text
     assert "RULE-SET,https://example.test/sub/rules/shadowrocket/global.conf,🚀 代理" in text
 
@@ -304,6 +334,7 @@ def test_generated_configs_route_representative_domains_as_expected(tmp_path: Pa
                 "cn_ip": "list",
                 "github": "list",
                 "google": "list",
+                "developer_global": "conf",
                 "ads": "list",
             }.get(rule_id, "conf" if client == "shadowrocket" else "txt")
             path_name = {
@@ -332,17 +363,21 @@ def test_generated_configs_route_representative_domains_as_expected(tmp_path: Pa
     (rules_root / "mihomo" / "domestic_non_ip.txt").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
     (rules_root / "mihomo" / "bilibili_direct.txt").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
     (rules_root / "mihomo" / "stream_non_ip.txt").write_text("DOMAIN-SUFFIX,youtube.com\n", encoding="utf-8")
+    (rules_root / "mihomo" / "developer_global.txt").write_text("DOMAIN-SUFFIX,pypi.org\n", encoding="utf-8")
     (rules_root / "shadowrocket" / "domestic.conf").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
     (rules_root / "shadowrocket" / "bilibili.list").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
     (rules_root / "shadowrocket" / "stream.conf").write_text("DOMAIN-SUFFIX,youtube.com\n", encoding="utf-8")
+    (rules_root / "shadowrocket" / "developer_global.conf").write_text("DOMAIN-SUFFIX,pypi.org\n", encoding="utf-8")
 
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "mirrors.aliyun.com").policy == "DIRECT"
     assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "mirrors.aliyun.com").policy == "DIRECT"
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "release-assets.githubusercontent.com").policy == "💻 GitHub"
     assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "release-assets.githubusercontent.com").policy == "💻 GitHub"
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "youtube.com").policy == "📺 流媒体"
+    assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "pypi.org").policy == "🛠 Developer"
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "bilibili.com").policy == "DIRECT"
     assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "bilibili.com").policy == "DIRECT"
+    assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "pypi.org").policy == "🛠 Developer"
 
     expectations = tmp_path / "expectations.yaml"
     expectations.write_text(
@@ -352,6 +387,7 @@ domains:
   release-assets.githubusercontent.com: "💻 GitHub"
   chatgpt.com: "🤖 AI"
   youtube.com: "📺 流媒体"
+  pypi.org: "🛠 Developer"
   bilibili.com: DIRECT
 """.strip()
         + "\n",

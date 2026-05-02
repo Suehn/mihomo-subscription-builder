@@ -6,6 +6,7 @@ domains:
   claude.ai: "🤖 AI"
   gemini.google.com: "🤖 AI"
   api.telegram.org: "✈️ Telegram"
+  google.com: "🔎 Google"
   youtube.com: "📺 流媒体"
   netflix.com: "📺 流媒体"
   bilibili.com: DIRECT
@@ -21,6 +22,10 @@ domains:
   mirrors.huaweicloud.com: DIRECT
   mirrors.tuna.tsinghua.edu.cn: DIRECT
   mirrors.ustc.edu.cn: DIRECT
+  goproxy.cn: DIRECT
+  registry.npmmirror.com: DIRECT
+  pypi.org: "🛠 Developer"
+  registry.npmjs.org: "🛠 Developer"
+  huggingface.co: "🛠 Developer"
   download.visualstudio.microsoft.com: DIRECT
-  download.jetbrains.com: "⬇️ 下载"
-  registry.npmjs.org: "⬇️ 下载"
+  download.jetbrains.com: "🛠 Developer"

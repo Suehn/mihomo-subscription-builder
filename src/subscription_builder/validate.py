@@ -10,13 +10,13 @@ from .render import GROUP_LABELS
 BUILTIN_POLICIES = {"DIRECT", "REJECT", "REJECT-DROP", "PASS"}
 SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_FIRST = [
     "PROXY",
-    "Final",
     "GitHub",
     "AI",
+    "Google",
+    "Developer",
     "Microsoft",
     "Telegram",
     "Streaming",
-    "Download",
 ]
 SHADOWROCKET_REQUIRED_RULE_FRAGMENTS = [
     "DOMAIN-SUFFIX,github.com",
@@ -24,6 +24,7 @@ SHADOWROCKET_REQUIRED_RULE_FRAGMENTS = [
     "DOMAIN-SUFFIX,chatgpt.com",
     "DOMAIN-SUFFIX,claude.ai",
     "/apple_intelligence.conf",
+    "/developer_global.conf",
     "/direct.conf",
     "/global.conf",
     "FINAL,",
@@ -37,6 +38,7 @@ SHADOWROCKET_RULE_ORDER = [
     ("/microsoft_cdn.conf", "/download_domainset.conf"),
     ("/apple_cdn.conf", "/download_domainset.conf"),
     ("/cn.", "/download_domainset.conf"),
+    ("/developer_global.conf", "/download_domainset.conf"),
     ("/download_domainset.conf", "/cn_ip."),
     ("/geolocation-!cn.", "/cn_ip."),
 ]

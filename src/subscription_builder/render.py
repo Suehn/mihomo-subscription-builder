@@ -19,6 +19,8 @@ GROUP_LABELS = {
     "RuleUpdate": "🔄 规则更新",
     "AI": "🤖 AI",
     "GitHub": "💻 GitHub",
+    "Google": "🔎 Google",
+    "Developer": "🛠 Developer",
     "Apple": "🍎 Apple",
     "Microsoft": "🪟 Microsoft",
     "Telegram": "✈️ Telegram",
@@ -87,8 +89,24 @@ def _append_unique_list(target: dict[str, object], path: list[str], values: list
     existing[:] = _dedupe([*existing, *values])
 
 
-def _apply_overlay(config: dict[str, object], overlay: dict[str, object]) -> list[str]:
+def _insert_after_rules(rules: list[str], anchor: str, insertions: list[str]) -> None:
+    if not insertions:
+        return
+    for index, rule in enumerate(rules):
+        if rule.startswith(anchor):
+            rules[index + 1:index + 1] = insertions
+            return
+    raise ValueError(f"Overlay anchor not found: {anchor}")
+
+
+def _apply_overlay(config: dict[str, object], rules: list[str], overlay: dict[str, object]) -> list[str]:
     prepend_rules = [str(item) for item in overlay.get("prepend-rules", [])]
+    for item in overlay.get("insert-after", []):
+        if not isinstance(item, dict):
+            raise TypeError("overlay insert-after entries must be mappings")
+        anchor = str(item["anchor"])
+        insertions = [str(rule) for rule in item.get("rules", [])]
+        _insert_after_rules(rules, anchor, insertions)
     dns_overlay = overlay.get("dns", {})
     if isinstance(dns_overlay, dict):
         fake_ip_filter = dns_overlay.get("fake-ip-filter", {})
@@ -150,12 +168,27 @@ def _build_mihomo_groups(project_root: Path, node_names: list[str]) -> list[dict
     return groups
 
 
+SHADOWROCKET_TRAFFIC_SAVER_FIRST_MEMBERS = {
+    "Download": ["DIRECT"],
+    "Final": ["DIRECT"],
+}
+
+
+def _shadowrocket_traffic_saver_members(group_name: str, members: list[str]) -> list[str]:
+    first_members = SHADOWROCKET_TRAFFIC_SAVER_FIRST_MEMBERS.get(group_name)
+    if not first_members:
+        return members
+    remaining = [member for member in members if member not in first_members]
+    return [*first_members, *remaining]
+
+
 def _build_shadowrocket_groups(project_root: Path, node_names: list[str]) -> list[dict[str, object]]:
     groups: list[dict[str, object]] = []
     for group in _build_mihomo_groups(project_root, node_names):
         if group["name"] == _g("RuleUpdate"):
             continue
-        members = [str(item) for item in group.get("proxies", [])]
+        group_key = next((key for key, label in GROUP_LABELS.items() if label == group["name"]), "")
+        members = _shadowrocket_traffic_saver_members(group_key, [str(item) for item in group.get("proxies", [])])
         shadow_group: dict[str, object] = {
             "name": group["name"],
             "type": group["type"],
@@ -189,7 +222,7 @@ def _build_mihomo_rules(project_root: Path, config: dict[str, object], overlay_n
         overlay = _load_yaml(overlay_path)
         if not isinstance(overlay, dict):
             raise TypeError(f"config/mihomo/overlays/{overlay_name}.yaml must contain a mapping")
-        rules = [*_apply_overlay(config, overlay), *rules]
+        rules = [*_apply_overlay(config, rules, overlay), *rules]
     return [_resolve_rule(rule) for rule in rules]
 
 

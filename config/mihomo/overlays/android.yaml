@@ -1,19 +1,34 @@
 prepend-rules:
-  - PROCESS-NAME,com.tencent.mm,DIRECT
-  - PROCESS-NAME,com.tencent.mobileqq,DIRECT
   - PROCESS-NAME,tv.danmaku.bili,DIRECT
   - PROCESS-NAME,com.bilibili.app.in,DIRECT
   - PROCESS-NAME,com.qiyi.video,DIRECT
   - PROCESS-NAME,com.tencent.qqlive,DIRECT
   - PROCESS-NAME,com.youku.phone,DIRECT
+  - PROCESS-NAME,com.youku.phone.free,DIRECT
   - PROCESS-NAME,com.ss.android.ugc.aweme,DIRECT
   - PROCESS-NAME,com.ss.android.ugc.aweme.lite,DIRECT
   - PROCESS-NAME,com.smile.gifmaker,DIRECT
+  - PROCESS-NAME,com.kuaishou.nebula,DIRECT
   - PROCESS-NAME,com.hunantv.imgo.activity,DIRECT
   - PROCESS-NAME,com.netease.cloudmusic,DIRECT
+  - PROCESS-NAME,com.tencent.qqmusic,DIRECT
+  - PROCESS-NAME,com.kugou.android,DIRECT
+  - PROCESS-NAME,com.kuwo.player,DIRECT
   - PROCESS-NAME,com.taobao.taobao,DIRECT
+  - PROCESS-NAME,com.tmall.wireless,DIRECT
   - PROCESS-NAME,com.jingdong.app.mall,DIRECT
   - PROCESS-NAME,com.xunmeng.pinduoduo,DIRECT
+  - PROCESS-NAME,com.eg.android.AlipayGphone,DIRECT
+  - PROCESS-NAME,com.unionpay,DIRECT
+  - PROCESS-NAME,com.sankuai.meituan,DIRECT
+  - PROCESS-NAME,com.dianping.v1,DIRECT
+  - PROCESS-NAME,com.autonavi.minimap,DIRECT
+  - PROCESS-NAME,com.baidu.BaiduMap,DIRECT
+insert-after:
+  - anchor: RULE-SET,telegram_non_ip
+    rules:
+      - PROCESS-NAME,com.tencent.mm,DIRECT
+      - PROCESS-NAME,com.tencent.mobileqq,DIRECT
 dns:
   fake-ip-filter:
     append:

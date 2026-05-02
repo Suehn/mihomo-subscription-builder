@@ -39,6 +39,14 @@ def _fetch_text(url: str, user_agent: str) -> str:
     raise RuntimeError(f"Failed to fetch rule source after retries: {url}") from last_error
 
 
+def _load_source_text(output: RuleOutput, user_agent: str, project_root: Path) -> str:
+    if output.source_file:
+        return (project_root / output.source_file).read_text(encoding="utf-8")
+    if output.source_url:
+        return _fetch_text(output.source_url, user_agent)
+    raise ValueError(f"Rule output must define source_url or source_file: {output.path}")
+
+
 def _convert_metacubex_domain_yaml_to_shadowrocket(content: str) -> str:
     data = yaml.safe_load(content)
     payload = data.get("payload", [])
@@ -85,11 +93,12 @@ def _transform_content(content: str, output: RuleOutput) -> str:
     return content if content.endswith("\n") else content + "\n"
 
 
-def build_rules(config: ProjectConfig, output_root: Path) -> dict[str, list[BuiltRule]]:
+def build_rules(config: ProjectConfig, output_root: Path, project_root: Path | None = None) -> dict[str, list[BuiltRule]]:
+    source_root = project_root or Path.cwd()
     manifest: dict[str, list[BuiltRule]] = {"mihomo": [], "shadowrocket": []}
     for rule in config.rules:
         for client_name, output in rule.outputs.items():
-            content = _fetch_text(output.source_url, config.user_agent)
+            content = _load_source_text(output, config.user_agent, source_root)
             rendered = _transform_content(content, output)
             destination = output_root / output.path
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -100,7 +109,7 @@ def build_rules(config: ProjectConfig, output_root: Path) -> dict[str, list[Buil
                     client=client_name,
                     policy=rule.policy,
                     path=output.path,
-                    source_url=output.source_url,
+                    source_url=output.source_url or output.source_file or "",
                     behavior=output.behavior,
                     format=output.format,
                 )

@@ -5,6 +5,8 @@ foreign_groups_no_direct_first:
   - Final
   - GitHub
   - AI
+  - Google
+  - Developer
   - Microsoft
   - Telegram
   - Streaming
@@ -19,6 +21,14 @@ rule_order:
     after: RULE-SET,download_domainset
   - before: RULE-SET,apple_intelligence
     after: RULE-SET,download_domainset
+  - before: GEOSITE,google
+    after: RULE-SET,download_domainset
+  - before: RULE-SET,developer_global
+    after: RULE-SET,download_domainset
+  - before: DOMAIN-SUFFIX,npmmirror.com
+    after: RULE-SET,developer_global
+  - before: DOMAIN-SUFFIX,goproxy.cn
+    after: RULE-SET,developer_global
   - before: RULE-SET,microsoft
     after: RULE-SET,download_domainset
   - before: RULE-SET,microsoft_cdn
@@ -39,6 +49,7 @@ required_rules:
   - RULE-SET,apple_intelligence
   - RULE-SET,direct_non_ip
   - RULE-SET,global_non_ip
+  - RULE-SET,developer_global
   - GEOSITE,github
   - GEOSITE,google
   - GEOIP,CN

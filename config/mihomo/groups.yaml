@@ -45,11 +45,29 @@ groups:
       - "@AUTO"
       - "@MANUAL"
     include_nodes: true
+  - key: Google
+    type: select
+    members:
+      - "@PROXY"
+      - "@FALLBACK"
+      - "@AUTO"
+      - "@MANUAL"
+    include_nodes: true
+  - key: Developer
+    type: select
+    members:
+      - "@PROXY"
+      - "@FALLBACK"
+      - "@AUTO"
+      - "@MANUAL"
+      - DIRECT
+    include_nodes: true
   - key: Apple
     type: select
     members:
       - DIRECT
       - "@PROXY"
+      - "@FALLBACK"
       - "@AUTO"
     include_nodes: true
   - key: Microsoft

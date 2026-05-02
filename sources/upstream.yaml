@@ -65,7 +65,7 @@ rules:
         path: rules/shadowrocket/github.list
         transform: metacubex_domain_to_shadowrocket
   - id: google
-    policy: PROXY
+    policy: Google
     outputs:
       mihomo:
         source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.yaml
@@ -75,6 +75,17 @@ rules:
         source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.yaml
         path: rules/shadowrocket/google.list
         transform: metacubex_domain_to_shadowrocket
+  - id: developer_global
+    policy: Developer
+    outputs:
+      mihomo:
+        source_file: rules/custom/developer_global.txt
+        path: rules/mihomo/developer_global.txt
+        behavior: classical
+        format: text
+      shadowrocket:
+        source_file: rules/custom/developer_global.txt
+        path: rules/shadowrocket/developer_global.conf
   - id: ads
     policy: REJECT
     outputs:

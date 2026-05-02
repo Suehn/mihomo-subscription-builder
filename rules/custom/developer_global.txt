@@ -1,0 +1,86 @@
+# Git hosting
+DOMAIN-SUFFIX,gitlab.com
+DOMAIN-SUFFIX,gitlab.io
+DOMAIN-SUFFIX,bitbucket.org
+DOMAIN-SUFFIX,atlassian.com
+
+# Python
+DOMAIN-SUFFIX,pypi.org
+DOMAIN-SUFFIX,files.pythonhosted.org
+DOMAIN-SUFFIX,pythonhosted.org
+DOMAIN-SUFFIX,python.org
+DOMAIN-SUFFIX,bootstrap.pypa.io
+DOMAIN-SUFFIX,pypa.io
+
+# Node / JS
+DOMAIN-SUFFIX,npmjs.org
+DOMAIN-SUFFIX,npmjs.com
+DOMAIN-SUFFIX,registry.npmjs.org
+DOMAIN-SUFFIX,nodejs.org
+DOMAIN-SUFFIX,yarnpkg.com
+DOMAIN-SUFFIX,pnpm.io
+DOMAIN-SUFFIX,unpkg.com
+
+# Go
+DOMAIN-SUFFIX,go.dev
+DOMAIN-SUFFIX,golang.org
+DOMAIN-SUFFIX,proxy.golang.org
+DOMAIN-SUFFIX,sum.golang.org
+
+# Rust
+DOMAIN-SUFFIX,crates.io
+DOMAIN-SUFFIX,static.crates.io
+DOMAIN-SUFFIX,docs.rs
+DOMAIN-SUFFIX,rust-lang.org
+DOMAIN-SUFFIX,static.rust-lang.org
+
+# Docker / containers
+DOMAIN-SUFFIX,docker.com
+DOMAIN-SUFFIX,docker.io
+DOMAIN-SUFFIX,hub.docker.com
+DOMAIN-SUFFIX,registry-1.docker.io
+DOMAIN-SUFFIX,auth.docker.io
+DOMAIN-SUFFIX,production.cloudflare.docker.com
+DOMAIN-SUFFIX,quay.io
+
+# Maven / Gradle / Java
+DOMAIN-SUFFIX,maven.org
+DOMAIN-SUFFIX,repo.maven.apache.org
+DOMAIN-SUFFIX,repo1.maven.org
+DOMAIN-SUFFIX,gradle.org
+DOMAIN-SUFFIX,plugins.gradle.org
+DOMAIN-SUFFIX,services.gradle.org
+DOMAIN-SUFFIX,sonatype.org
+
+# JetBrains / IDE
+DOMAIN-SUFFIX,jetbrains.com
+DOMAIN-SUFFIX,download.jetbrains.com
+DOMAIN-SUFFIX,plugins.jetbrains.com
+DOMAIN-SUFFIX,resources.jetbrains.com
+
+# VS Code / Microsoft developer surface
+DOMAIN-SUFFIX,visualstudio.com
+DOMAIN-SUFFIX,visualstudio.microsoft.com
+DOMAIN-SUFFIX,vscode.dev
+DOMAIN-SUFFIX,marketplace.visualstudio.com
+
+# Homebrew
+DOMAIN-SUFFIX,brew.sh
+DOMAIN-SUFFIX,formulae.brew.sh
+
+# Linux / package repos
+DOMAIN-SUFFIX,archive.ubuntu.com
+DOMAIN-SUFFIX,security.ubuntu.com
+DOMAIN-SUFFIX,deb.debian.org
+DOMAIN-SUFFIX,download.opensuse.org
+DOMAIN-SUFFIX,apt.llvm.org
+DOMAIN-SUFFIX,packages.cloud.google.com
+DOMAIN-SUFFIX,apt.releases.hashicorp.com
+DOMAIN-SUFFIX,releases.hashicorp.com
+
+# ML / AI developer downloads
+DOMAIN-SUFFIX,huggingface.co
+DOMAIN-SUFFIX,hf.co
+DOMAIN-SUFFIX,xethub.hf.co
+DOMAIN-SUFFIX,kaggle.com
+DOMAIN-SUFFIX,wandb.ai

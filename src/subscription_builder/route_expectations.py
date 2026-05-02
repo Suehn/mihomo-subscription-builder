@@ -102,6 +102,7 @@ def _geosite_matches(category: str, domain: str) -> bool:
         "disney": ["disneyplus.com", "disney-plus.net", "dssott.com"],
         "spotify": ["spotify.com", "scdn.co", "spotifycdn.com"],
         "tiktok": ["tiktok.com", "tiktokv.com", "byteoversea.com"],
+        "google": ["google.com", "googleapis.com", "gstatic.com", "googleusercontent.com", "google.dev"],
         "microsoft": ["microsoft.com", "windows.com", "office.com", "live.com", "azure.com"],
         "microsoft@cn": ["download.visualstudio.microsoft.com"],
         "apple": ["apple.com", "icloud.com", "mzstatic.com"],

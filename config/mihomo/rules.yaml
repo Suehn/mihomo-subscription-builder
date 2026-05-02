@@ -22,6 +22,7 @@ rules:
   - DOMAIN-SUFFIX,githubusercontent.com,@GitHub
   - DOMAIN-SUFFIX,objects.githubusercontent.com,@GitHub
   - DOMAIN-SUFFIX,ghcr.io,@GitHub
+  - DOMAIN-SUFFIX,pkg-containers.githubusercontent.com,@GitHub
 
   - DOMAIN-SUFFIX,openai.com,@AI
   - DOMAIN-SUFFIX,chatgpt.com,@AI
@@ -31,6 +32,10 @@ rules:
   - DOMAIN-SUFFIX,claude.ai,@AI
   - DOMAIN-SUFFIX,claude.com,@AI
   - DOMAIN-SUFFIX,gemini.google.com,@AI
+  - DOMAIN-SUFFIX,youtube.com,@Streaming
+  - DOMAIN-SUFFIX,youtu.be,@Streaming
+  - DOMAIN-SUFFIX,googlevideo.com,@Streaming
+  - DOMAIN-SUFFIX,ytimg.com,@Streaming
 
   - DOMAIN-SUFFIX,mirrors.aliyun.com,DIRECT
   - DOMAIN-SUFFIX,mirrors.cloud.tencent.com,DIRECT
@@ -39,17 +44,26 @@ rules:
   - DOMAIN-SUFFIX,mirrors.tuna.tsinghua.edu.cn,DIRECT
   - DOMAIN-SUFFIX,mirrors.ustc.edu.cn,DIRECT
   - DOMAIN-SUFFIX,mirrors.bfsu.edu.cn,DIRECT
+  - DOMAIN-SUFFIX,mirrors.nju.edu.cn,DIRECT
   - DOMAIN-SUFFIX,mirrors.sjtug.sjtu.edu.cn,DIRECT
+  - DOMAIN-SUFFIX,npmmirror.com,DIRECT
+  - DOMAIN-SUFFIX,registry.npmmirror.com,DIRECT
+  - DOMAIN-SUFFIX,goproxy.cn,DIRECT
+  - DOMAIN-SUFFIX,maven.aliyun.com,DIRECT
+  - DOMAIN-SUFFIX,repo.huaweicloud.com,DIRECT
+  - DOMAIN-SUFFIX,registry.cn-hangzhou.aliyuncs.com,DIRECT
+  - DOMAIN-SUFFIX,ccr.ccs.tencentyun.com,DIRECT
 
-  - DOMAIN,registry.npmjs.org,@Download
-  - DOMAIN,replicate.npmjs.com,@Download
-  - DOMAIN,registry.npmjs.com,@Download
-  - DOMAIN,skimdb.npmjs.com,@Download
-  - DOMAIN,download.jetbrains.com,@Download
+  - DOMAIN,registry.npmjs.org,@Developer
+  - DOMAIN,replicate.npmjs.com,@Developer
+  - DOMAIN,registry.npmjs.com,@Developer
+  - DOMAIN,skimdb.npmjs.com,@Developer
+  - DOMAIN,download.jetbrains.com,@Developer
 
   - RULE-SET,ai,@AI
   - RULE-SET,apple_intelligence,@AI
   - GEOSITE,github,@GitHub
+  - GEOSITE,google,@Google
   - RULE-SET,telegram_non_ip,@Telegram
 
   - RULE-SET,apple_cn,DIRECT
@@ -68,11 +82,12 @@ rules:
   - GEOSITE,spotify,@Streaming
   - GEOSITE,tiktok,@Streaming
   - RULE-SET,stream_non_ip,@Streaming
-  - GEOSITE,google,@PROXY
 
   - RULE-SET,direct_non_ip,DIRECT
   - RULE-SET,domestic_non_ip,DIRECT
   - GEOSITE,cn,DIRECT
+
+  - RULE-SET,developer_global,@Developer
 
   - RULE-SET,download_domainset,@Download
   - RULE-SET,download_non_ip,@Download
