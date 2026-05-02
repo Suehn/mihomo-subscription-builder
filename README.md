@@ -25,48 +25,194 @@ through the private `UPSTREAM_SUB_URL` secret.
 - Renders a Shadowrocket configuration and also emits URI subscription fallbacks
 - Uses emoji policy groups for easier client-side reading
 
-## Rule Strategy
+## Design Principles
 
-This project is intentionally a thin Mihomo subscription assembler, not a full
-hand-maintained routing rulebase. The long-term shape is:
+The project is designed around one primary objective:
 
-- `MetaCubeX/meta-rules-dat` for the Mihomo geosite/geoip backbone
-- `SukkaW/Surge` mirror rule sets for AI, Apple, Microsoft, Telegram, streaming,
-  download, LAN, domestic, direct, and global supplemental rules
-- a very small local overlay for macOS and Android process/package DIRECT rules
-- policy validation that blocks unsafe rule ordering and proxy-group defaults
+> Domestic traffic should be direct and unnoticeable first. On that foundation,
+> known foreign services should be explicitly captured, and unknown foreign
+> traffic should still have a proxy fallback.
 
-For Mihomo clients, the generated config uses `GEOSITE` / `GEOIP` for large
-MetaCubeX categories such as `cn`, `geolocation-!cn`, `github`, `google`, and
-`CN` IPs. That keeps those large rulebases in Mihomo's geodata loader instead of
-loading them as normal `rule-providers` at startup.
+The resulting failure mode is intentional. A high-confidence Chinese app,
+Chinese media service, Chinese mirror, Chinese domain, or Chinese IP should be
+routed DIRECT. GitHub, AI, Google, Telegram, developer infrastructure, Microsoft
+global services, and streaming should be routed to named proxy groups before
+they can be swallowed by broad domestic or download rules. Final fallback stays
+proxy-first on Mihomo, but CN IP fallback is allowed to resolve so unknown
+Chinese domains can still land on DIRECT.
 
-The update model is therefore simple: upstream supplemental rule sets are
-mirrored into `dist/rules/`, `dist/mihomo-full.yaml` references only the
-providers that are actually used by its route order, and Mihomo can also refresh
-providers through the `🔄 规则更新` policy group. Shadowrocket cannot consume
-Mihomo `GEOSITE` / `GEOIP` syntax directly, so its renderer translates the same
-route slots back into the mirrored Shadowrocket rule files.
+This project is intentionally a thin subscription assembler, not a
+hand-maintained full rulebase. It follows mature rule sources and only keeps a
+small local layer for stable developer domains and device-specific app/process
+rules.
 
-The rules are kept in reviewable YAML templates under `config/mihomo/`:
+## Routing Architecture
 
-- `base.yaml` controls DNS, IPv6, geodata, and sniffer behavior
-- `groups.yaml` controls proxy-group defaults
-- `rules.yaml` controls the stable route order
-- `overlays/macos.yaml` and `overlays/android.yaml` keep device-specific direct rules
-- `validation.yaml` defines CI policy checks
-- `../route-expectations.yaml` defines representative domain routing expectations
+The generated route order is built in layers. Each layer exists to prevent a
+specific class of misrouting.
 
-The default profile is an always-on profile: domestic domains, domestic IPs, and
-known Chinese apps/video services go DIRECT, specific foreign services are
-pinned before broad download rules, `Download`/`Final` do not default to
-DIRECT, and IPv6 is disabled by default for networks where domestic AAAA routes
-are not reliable.
+### 1. Mature Rule Backbone
 
-Shadowrocket uses the same group and rule templates where the syntax overlaps.
-Mihomo-only `GEOSITE` rules are translated into explicit rule-provider or pinned
-domain rules for Shadowrocket instead of maintaining a separate hand-written
-iOS rule order.
+`MetaCubeX/meta-rules-dat` supplies the large geosite/geoip backbone. Mihomo uses
+native `GEOSITE` / `GEOIP` rules for large categories such as `cn`,
+`geolocation-!cn`, `github`, `google`, and `CN` IPs. This keeps large data in
+Mihomo's geodata loader instead of normal runtime `rule-providers`.
+
+`SukkaW/Surge` mirror rules supply focused supplemental layers for AI, Apple,
+Microsoft, Telegram, streaming, download, LAN, domestic, direct, and global
+traffic. These are mirrored into `dist/rules/` and referenced through
+self-hosted rule-provider URLs.
+
+The local rule layer is deliberately small. `rules/custom/developer_global.txt`
+contains stable developer ecosystem domains such as PyPI, npm, Go, Rust, Docker,
+Maven, JetBrains, Homebrew, Linux package repositories, and Hugging Face. Broad
+CDN domains are not included there because they would capture too much unrelated
+traffic.
+
+### 2. Domestic-First Mihomo Order
+
+The Mihomo profile follows this high-level order:
+
+1. Local noise and private networks: `wpad`, private geosite/geoip, LAN rules.
+2. High-confidence domestic services: Tencent, Alibaba, Baidu, Weibo,
+   Xiaohongshu, Xiaomi, Huawei, WeChat rule sets, Bilibili, NetEase Music, and
+   China media.
+3. Foreign hard pins: GitHub, OpenAI/AI, Claude, Gemini, and YouTube domain pins.
+4. Domestic developer mirrors: TUNA, USTC, BFSU, NJU, SJTU, Aliyun, Tencent,
+   Huawei Cloud, `npmmirror.com`, `goproxy.cn`, Maven/registry mirrors.
+5. Foreign service groups: AI, Apple Intelligence, GitHub, Google, Telegram.
+6. Apple and Microsoft split rules: China/CDN paths direct, global services in
+   named groups.
+7. Streaming, domestic non-IP, `GEOSITE,cn,DIRECT`, developer-global, download,
+   global, `geolocation-!cn`, IP rules, `GEOIP,CN,DIRECT`, final fallback.
+
+The key tail rule is:
+
+```yaml
+- GEOIP,CN,DIRECT
+- MATCH,🌐 兜底
+```
+
+`GEOIP,CN,DIRECT` intentionally does not use `no-resolve`. This lets unknown
+domains that were not caught by domestic domain rules resolve to a CN IP and go
+DIRECT. `MATCH` still points to the `🌐 兜底` group, whose Mihomo default is
+proxy-first, so unknown non-CN traffic does not silently fall back to DIRECT.
+
+### 3. Proxy Group Defaults
+
+Mihomo and Shadowrocket share the same group names where possible:
+
+- `🚀 代理`: primary proxy selector, first group for easy client operation.
+- `💻 GitHub`, `🤖 AI`, `🔎 Google`, `🛠 Developer`, `✈️ Telegram`,
+  `📺 流媒体`: explicit foreign service groups.
+- `🍎 Apple`: defaults DIRECT because normal Apple system services, App Store,
+  iCloud, push, and updates are commonly domestic-friendly. Apple Intelligence is
+  routed to `🤖 AI` instead.
+- `🪟 Microsoft`: defaults proxy-first for global Microsoft services, while
+  Microsoft CN/CDN rules are direct before the group.
+- `⬇️ 下载`: Mihomo defaults proxy/fallback first; iOS defaults DIRECT first for
+  traffic saving.
+- `🌐 兜底`: Mihomo defaults proxy-first; iOS defaults DIRECT first.
+
+This split is deliberate. Desktop should protect unknown foreign traffic more
+aggressively. iOS should protect domestic traffic and cellular data more
+aggressively, while still proxying explicitly known foreign services.
+
+## Multi-Client Behavior
+
+### macOS Mihomo
+
+`dist/mihomo-full.yaml` is the main desktop profile for Clash Verge Rev. It is
+the strict always-on profile:
+
+- IPv6 is disabled by default because the target environment has shown unstable
+  domestic IPv6 direct routes.
+- DNS uses domestic DoH servers and filters local `wpad` noise.
+- Domestic services and CN domains/IPs are direct.
+- GitHub, AI, Google, Telegram, Developer, Microsoft global, and streaming are
+  explicit proxy groups.
+- `🌐 兜底` is proxy-first.
+
+The macOS overlay keeps pure domestic processes such as NetEase Music and
+UURemote early DIRECT. Mixed container apps such as WeChat and QQ are inserted
+after GitHub/AI/Google/Telegram pins, so ordinary chat traffic remains DIRECT
+while explicit foreign links are not hidden behind a process-level DIRECT rule.
+
+### Android Mihomo
+
+`dist/mihomo-android.yaml` uses the same base strategy but has a more aggressive
+domestic app overlay. Domestic video, short-video, music, shopping, payment,
+maps, and local-life package names are placed early DIRECT to protect domestic
+experience and avoid wasting proxy traffic.
+
+WeChat and QQ package rules are not placed at the very top. They are inserted
+after foreign hard pins for the same reason as macOS: they are mixed containers
+that can open third-party foreign links.
+
+### iOS Shadowrocket
+
+`dist/shadowrocket.conf` is intentionally Traffic-Saver first:
+
+- Domestic domains, domestic media, domestic mirrors, and CN IP rules go DIRECT.
+- `⬇️ 下载` defaults DIRECT first.
+- `🌐 兜底` defaults DIRECT first.
+- GitHub, AI, Google, Developer, Telegram, Microsoft, and streaming groups still
+  default proxy-first.
+
+iOS does not have the same process/package routing freedom as Mihomo on macOS or
+Android. The Shadowrocket renderer therefore reuses the same source rule order
+where syntax overlaps, translates Mihomo-only `GEOSITE` / `GEOIP` slots into
+mirrored Shadowrocket rule files, and avoids pretending that iOS can exactly
+match Android package-level behavior.
+
+If proxy traffic is expensive or the phone is mostly used for domestic apps,
+Shadowrocket should keep the generated Traffic-Saver behavior. If a specific
+foreign unknown site fails on iOS, add a small explicit pin instead of changing
+the whole iOS `FINAL` back to proxy-first.
+
+## Update And Maintenance Model
+
+The rule source of truth is kept in reviewable templates:
+
+- `sources/upstream.yaml`: upstream node secret, public artifact base URL, and
+  all mirrored rule sources.
+- `config/mihomo/base.yaml`: DNS, IPv6, geodata, sniffer, and general Mihomo
+  runtime settings.
+- `config/mihomo/groups.yaml`: shared group definitions and defaults.
+- `config/mihomo/rules.yaml`: canonical route order.
+- `config/mihomo/overlays/macos.yaml`: macOS process overlay.
+- `config/mihomo/overlays/android.yaml`: Android package/process overlay.
+- `config/mihomo/validation.yaml`: policy checks for Mihomo route order and
+  group defaults.
+- `config/route-expectations.yaml`: representative domain routing tests.
+- `rules/custom/developer_global.txt`: small local developer ecosystem list.
+
+Generated files land in `dist/` and should not be edited manually. For local
+Clash Verge changes, update the source templates, regenerate, validate, commit,
+push, then update the client profile from the published URL.
+
+## Validation Strategy
+
+`python -m subscription_builder.cli validate` checks:
+
+- Mihomo syntax with `verge-mihomo -t` when Clash Verge Rev is installed.
+- Mihomo group existence, rule-provider references, final rule placement, IPv6
+  policy, and route ordering.
+- Shadowrocket sections, IPv6 policy, key foreign groups, final rule placement,
+  and rule ordering.
+- Representative domain routing from `config/route-expectations.yaml`, including
+  GitHub assets, AI domains, Telegram, Google, YouTube/Netflix, common Chinese
+  video sites, domestic mirrors, Microsoft CDN, JetBrains downloads, npm/PyPI,
+  Hugging Face, and CN direct behavior.
+
+`python -m pytest` covers renderer behavior, local rule source handling,
+Traffic-Saver Shadowrocket group defaults, overlay insertion order, and route
+expectation simulation.
+
+`python -m subscription_builder.cli smoke-runtime` starts temporary Mihomo
+instances on high local ports, waits for providers to load, and requests
+representative URLs through the generated mixed-port. This catches runtime
+failures that static YAML validation cannot see.
 
 Important: `mihomo-full.yaml` contains proxy nodes. Publishing `dist/` to
 public GitHub Pages exposes those nodes to anyone with the URL. For private use,
@@ -122,23 +268,6 @@ This project therefore publishes both:
 If a future Shadowrocket build rejects the generated local VLESS line inside
 `shadowrocket.conf`, import `shadowrocket-subscription.txt` first, then keep
 using `shadowrocket.conf` for rules and groups.
-
-## Validation Coverage
-
-`python -m subscription_builder.cli validate` checks:
-
-- Mihomo syntax with `verge-mihomo -t` when Clash Verge Rev is installed
-- Mihomo and Shadowrocket group defaults, final rule placement, and rule order
-- representative domain routing from `config/route-expectations.yaml`, including
-  GitHub assets, AI domains, Telegram, YouTube/Netflix, common Chinese video
-  sites, domestic mirrors, Microsoft CDN, JetBrains downloads, and npm registry
-
-`python -m subscription_builder.cli smoke-runtime` starts temporary Mihomo
-instances on high local ports, waits for rule providers to finish loading, and
-requests representative domestic/foreign URLs through the generated mixed-port.
-This catches runtime failures that `-t` cannot see. During a fresh start, large
-providers may report `ruleCount: 0` briefly; the smoke waits for readiness before
-testing traffic.
 
 The default route set intentionally does not enable ad blocking. Blocking rules
 are mirrored as artifacts, but keeping them out of the default route order
