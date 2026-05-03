@@ -74,6 +74,12 @@ jobs:
           printf '%s\n' "$PRIVATE_SSH_KEY" > ~/.ssh/private_deploy_key
           chmod 600 ~/.ssh/private_deploy_key
           SSH_PORT="${PRIVATE_SSH_PORT:-22}"
+          case "$PRIVATE_SSH_PATH" in
+            ""|"/"|"."|"~")
+              echo "Refusing unsafe PRIVATE_SSH_PATH: $PRIVATE_SSH_PATH" >&2
+              exit 1
+              ;;
+          esac
           ssh-keyscan -p "$SSH_PORT" "$PRIVATE_SSH_HOST" >> ~/.ssh/known_hosts
           rsync -az --delete -e "ssh -i ~/.ssh/private_deploy_key -p $SSH_PORT" dist/ "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST:$PRIVATE_SSH_PATH/"
 
