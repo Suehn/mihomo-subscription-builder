@@ -95,7 +95,26 @@ def _mihomo_provider_path(config_path: Path, provider: dict[str, object]) -> Pat
     return None
 
 
-def _geosite_matches(category: str, domain: str) -> bool:
+def _geosite_rule_path(config_path: Path, category: str) -> Path | None:
+    file_names = {
+        "private": "private.yaml",
+        "github": "github.yaml",
+        "google": "google.yaml",
+        "cn": "cn.yaml",
+        "geolocation-!cn": "geolocation-!cn.yaml",
+    }
+    file_name = file_names.get(category)
+    if not file_name:
+        return None
+    return (config_path.parent / "rules" / "mihomo" / file_name).resolve()
+
+
+def _geosite_matches(category: str, domain: str, *, config_path: Path | None = None) -> bool:
+    if config_path is not None:
+        provider_path = _geosite_rule_path(config_path, category)
+        if provider_path and _provider_matches(provider_path, domain):
+            return True
+
     suffixes = {
         "youtube": ["youtube.com", "youtu.be", "googlevideo.com", "ytimg.com"],
         "netflix": ["netflix.com", "nflxvideo.net", "nflximg.net", "nflxext.com", "nflxso.net"],
@@ -120,6 +139,10 @@ def _policy_from_rule_parts(parts: list[str]) -> str:
     return parts[2]
 
 
+def _logic_rule_policy(rule: str) -> str:
+    return rule.rsplit(",", 1)[-1]
+
+
 def route_mihomo_domain(config_path: Path, domain: str) -> MatchResult:
     config = _load_yaml(config_path)
     if not isinstance(config, dict):
@@ -130,13 +153,18 @@ def route_mihomo_domain(config_path: Path, domain: str) -> MatchResult:
         parts = [part.strip() for part in rule.split(",")]
         if not parts:
             continue
+        if parts[0] in {"AND", "OR", "NOT"}:
+            # Domain-only simulator cannot decide GEOIP clauses, so logical
+            # rules are intentionally skipped. Concrete follow-up rules are
+            # still evaluated and covered by route expectations.
+            continue
         if parts[0] == "RULE-SET" and len(parts) >= 3:
             provider_path = provider_paths.get(parts[1])
             if provider_path and _provider_matches(provider_path, domain):
                 return MatchResult(policy=_policy_from_rule_parts(parts), rule=rule)
             continue
         if parts[0] == "GEOSITE":
-            if len(parts) >= 3 and _geosite_matches(parts[1], domain):
+            if len(parts) >= 3 and _geosite_matches(parts[1], domain, config_path=config_path):
                 return MatchResult(policy=_policy_from_rule_parts(parts), rule=rule)
             continue
         if parts[0] in {"MATCH", "FINAL"} and len(parts) >= 2:
@@ -190,6 +218,7 @@ def validate_route_expectations(
     *,
     mihomo_paths: Iterable[Path],
     shadowrocket_path: Path,
+    shadowrocket_strict_path: Path | None = None,
     expectations_path: Path,
 ) -> None:
     payload = _load_yaml(expectations_path)
@@ -207,5 +236,11 @@ def validate_route_expectations(
             errors.append(
                 f"{shadowrocket_path.name}: {domain} => {shadow_result.policy} via {shadow_result.rule}; expected {expected_policy}"
             )
+        if shadowrocket_strict_path is not None:
+            strict_result = route_shadowrocket_domain(shadowrocket_strict_path, domain)
+            if strict_result.policy != expected_policy:
+                errors.append(
+                    f"{shadowrocket_strict_path.name}: {domain} => {strict_result.policy} via {strict_result.rule}; expected {expected_policy}"
+                )
     if errors:
         raise ValueError("Route expectation failures:\n" + "\n".join(errors))

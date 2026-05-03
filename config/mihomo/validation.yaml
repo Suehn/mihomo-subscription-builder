@@ -36,7 +36,11 @@ rule_order:
   - before: RULE-SET,apple_cdn
     after: RULE-SET,download_domainset
   - before: GEOSITE,cn
+    after: AND,((RULE-SET,download_domainset),(GEOIP,CN)),DIRECT
+  - before: AND,((RULE-SET,download_domainset),(GEOIP,CN)),DIRECT
     after: RULE-SET,download_domainset
+  - before: AND,((RULE-SET,download_non_ip),(GEOIP,CN)),DIRECT
+    after: RULE-SET,download_non_ip
   - before: RULE-SET,download_domainset
     after: GEOIP,CN
   - before: GEOSITE,geolocation-!cn
@@ -50,6 +54,8 @@ required_rules:
   - RULE-SET,direct_non_ip
   - RULE-SET,global_non_ip
   - RULE-SET,developer_global
+  - AND,((RULE-SET,download_domainset),(GEOIP,CN)),DIRECT
+  - AND,((RULE-SET,download_non_ip),(GEOIP,CN)),DIRECT
   - GEOSITE,github
   - GEOSITE,google
   - GEOIP,CN

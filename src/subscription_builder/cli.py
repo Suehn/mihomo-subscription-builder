@@ -6,12 +6,12 @@ import subprocess
 import sys
 
 from .config import ProjectConfig, load_project_config
-from .nodes import fetch_and_parse_nodes, write_nodes_json, write_shadowrocket_uri_artifacts
+from .nodes import fetch_and_parse_nodes, read_nodes_json, write_nodes_json, write_shadowrocket_uri_artifacts
 from .render import render_index, render_mihomo, render_shadowrocket
 from .route_expectations import validate_route_expectations
 from .runtime_smoke import run_mihomo_runtime_smoke
-from .rules import build_rules, write_rule_manifest
-from .validate import validate_mihomo_config, validate_shadowrocket_config
+from .rules import build_rules, write_rule_audit, write_rule_manifest
+from .validate import validate_mihomo_config, validate_rule_audit, validate_shadowrocket_config
 
 
 DEFAULT_MIhOMO_BIN = Path("/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo")
@@ -33,13 +33,17 @@ def _load_context(args: argparse.Namespace) -> tuple[Path, ProjectConfig, Path, 
 
 def _build_all(args: argparse.Namespace) -> int:
     project_root, config, output_root, build_root = _load_context(args)
-    upstream_url = config.resolve_upstream_url(args.upstream_url)
     public_base_url = config.resolve_public_base_url(args.public_base_url)
-    nodes = fetch_and_parse_nodes(upstream_url, config.user_agent)
-    write_nodes_json(nodes, build_root / "nodes.json")
+    if args.use_cached_nodes:
+        nodes = read_nodes_json(build_root / "nodes.json")
+    else:
+        upstream_url = config.resolve_upstream_url(args.upstream_url)
+        nodes = fetch_and_parse_nodes(upstream_url, config.user_agent)
+        write_nodes_json(nodes, build_root / "nodes.json")
     write_shadowrocket_uri_artifacts(nodes, output_root)
     manifest = build_rules(config, output_root, project_root=project_root)
     write_rule_manifest(manifest, build_root / "rule-manifest.json")
+    write_rule_audit(manifest, output_root, build_root / "rule-audit.json")
     render_mihomo(
         project_root=project_root,
         output_root=output_root,
@@ -64,6 +68,17 @@ def _build_all(args: argparse.Namespace) -> int:
         public_base_url=public_base_url,
         nodes=nodes,
         manifest=manifest,
+        output_name="shadowrocket.conf",
+        traffic_saver=True,
+    )
+    render_shadowrocket(
+        project_root=project_root,
+        output_root=output_root,
+        public_base_url=public_base_url,
+        nodes=nodes,
+        manifest=manifest,
+        output_name="shadowrocket-strict.conf",
+        traffic_saver=False,
     )
     render_index(output_root=output_root, public_base_url=public_base_url)
     return 0
@@ -74,21 +89,27 @@ def _validate(args: argparse.Namespace) -> int:
     mihomo_path = output_root / "mihomo-full.yaml"
     android_mihomo_path = output_root / "mihomo-android.yaml"
     shadowrocket_path = output_root / "shadowrocket.conf"
+    shadowrocket_strict_path = output_root / "shadowrocket-strict.conf"
     if not mihomo_path.exists():
         raise FileNotFoundError(mihomo_path)
     if not android_mihomo_path.exists():
         raise FileNotFoundError(android_mihomo_path)
     if not shadowrocket_path.exists():
         raise FileNotFoundError(shadowrocket_path)
+    if not shadowrocket_strict_path.exists():
+        raise FileNotFoundError(shadowrocket_strict_path)
 
     validation_path = project_root / "config" / "mihomo" / "validation.yaml"
     validate_mihomo_config(mihomo_path, validation_path)
     validate_mihomo_config(android_mihomo_path, validation_path)
+    validate_rule_audit(project_root / "build" / "rule-audit.json")
 
-    validate_shadowrocket_config(shadowrocket_path)
+    validate_shadowrocket_config(shadowrocket_path, traffic_saver=True)
+    validate_shadowrocket_config(shadowrocket_strict_path, traffic_saver=False)
     validate_route_expectations(
         mihomo_paths=[mihomo_path, android_mihomo_path],
         shadowrocket_path=shadowrocket_path,
+        shadowrocket_strict_path=shadowrocket_strict_path,
         expectations_path=project_root / "config" / "route-expectations.yaml",
     )
 
@@ -127,7 +148,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mihomo-bin", default=None)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("build-all")
+    build_parser = subparsers.add_parser("build-all")
+    build_parser.add_argument(
+        "--use-cached-nodes",
+        action="store_true",
+        help="Use build/nodes.json instead of fetching the upstream subscription.",
+    )
     subparsers.add_parser("validate")
     smoke_parser = subparsers.add_parser("smoke-runtime")
     smoke_parser.add_argument("--mixed-port", type=int, default=18600)

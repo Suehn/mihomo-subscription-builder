@@ -25,7 +25,21 @@ domains:
   goproxy.cn: DIRECT
   registry.npmmirror.com: DIRECT
   pypi.org: "🛠 Developer"
+  files.pythonhosted.org: "🛠 Developer"
   registry.npmjs.org: "🛠 Developer"
+  go.dev: "🛠 Developer"
+  golang.org: "🛠 Developer"
+  proxy.golang.org: "🛠 Developer"
+  sum.golang.org: "🛠 Developer"
+  crates.io: "🛠 Developer"
+  docker.io: "🛠 Developer"
+  registry-1.docker.io: "🛠 Developer"
+  auth.docker.io: "🛠 Developer"
+  production.cloudflare.docker.com: "🛠 Developer"
   huggingface.co: "🛠 Developer"
+  hf.co: "🛠 Developer"
+  xethub.hf.co: "🛠 Developer"
+  vscode.dev: "🛠 Developer"
+  marketplace.visualstudio.com: "🛠 Developer"
   download.visualstudio.microsoft.com: DIRECT
   download.jetbrains.com: "🛠 Developer"

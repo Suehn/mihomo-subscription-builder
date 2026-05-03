@@ -16,17 +16,22 @@ RULE_IDS = [
     "lan_non_ip",
     "lan_ip",
     "ads",
-    "tencent_direct",
-    "alibaba_direct",
-    "baidu_direct",
-    "weibo_direct",
-    "xiaohongshu_direct",
-    "xiaomi_direct",
-    "huawei_direct",
-    "wechat_direct",
-    "bilibili_direct",
-    "neteasemusic_direct",
-    "china_media_direct",
+    "tencent_direct_ip",
+    "alibaba_direct_ip",
+    "baidu_direct_domain",
+    "weibo_direct_domain",
+    "xiaohongshu_direct_domain",
+    "xiaomi_direct_domain",
+    "xiaomi_direct_ip",
+    "huawei_direct_domain",
+    "wechat_direct_domain",
+    "wechat_direct_ip",
+    "bilibili_direct_domain",
+    "bilibili_direct_ip",
+    "neteasemusic_direct_domain",
+    "neteasemusic_direct_ip",
+    "china_media_direct_domain",
+    "china_media_direct_ip",
     "apple_cdn",
     "apple_cn",
     "microsoft_cdn",
@@ -95,7 +100,7 @@ def _render_config(tmp_path: Path) -> dict[str, object]:
     return yaml.safe_load((tmp_path / "mihomo-full.yaml").read_text(encoding="utf-8"))
 
 
-def _render_shadowrocket(tmp_path: Path) -> str:
+def _render_shadowrocket(tmp_path: Path, *, output_name: str = "shadowrocket.conf", traffic_saver: bool = True) -> str:
     rules = [_rule(rule_id) for rule_id in RULE_IDS]
     for rule in rules:
         rule.client = "shadowrocket"
@@ -108,17 +113,15 @@ def _render_shadowrocket(tmp_path: Path) -> str:
             "google": "google.list",
             "developer_global": "developer_global.conf",
             "ads": "category-ads-all.list",
-            "wechat_direct": "wechat.list",
-            "bilibili_direct": "bilibili.list",
-            "neteasemusic_direct": "neteasemusic.list",
-            "china_media_direct": "china_media.list",
-            "tencent_direct": "tencent.list",
-            "alibaba_direct": "alibaba.list",
-            "baidu_direct": "baidu.list",
-            "weibo_direct": "weibo.list",
-            "xiaohongshu_direct": "xiaohongshu.list",
-            "xiaomi_direct": "xiaomi.list",
-            "huawei_direct": "huawei.list",
+            "wechat_direct_domain": "wechat.list",
+            "bilibili_direct_domain": "bilibili.list",
+            "neteasemusic_direct_domain": "neteasemusic.list",
+            "china_media_direct_domain": "china_media.list",
+            "baidu_direct_domain": "baidu.list",
+            "weibo_direct_domain": "weibo.list",
+            "xiaohongshu_direct_domain": "xiaohongshu.list",
+            "xiaomi_direct_domain": "xiaomi.list",
+            "huawei_direct_domain": "huawei.list",
             "ai": "ai.conf",
             "apple_intelligence": "apple_intelligence.conf",
             "apple_cdn": "apple_cdn.conf",
@@ -139,8 +142,11 @@ def _render_shadowrocket(tmp_path: Path) -> str:
             "domestic_non_ip": "domestic.conf",
             "domestic_ip": "domestic_ip.conf",
         }
+        if rule.rule_id not in shadowrocket_paths:
+            continue
         rule.path = f"rules/shadowrocket/{shadowrocket_paths[rule.rule_id]}"
 
+    shadowrocket_rule_ids = set(shadowrocket_paths)
     render_shadowrocket(
         project_root=Path.cwd(),
         output_root=tmp_path,
@@ -155,9 +161,11 @@ def _render_shadowrocket(tmp_path: Path) -> str:
                 tls=True,
             )
         ],
-        manifest={"mihomo": [], "shadowrocket": rules},
+        manifest={"mihomo": [], "shadowrocket": [rule for rule in rules if rule.rule_id in shadowrocket_rule_ids]},
+        output_name=output_name,
+        traffic_saver=traffic_saver,
     )
-    return (tmp_path / "shadowrocket.conf").read_text(encoding="utf-8")
+    return (tmp_path / output_name).read_text(encoding="utf-8")
 
 
 def test_mihomo_disables_ipv6_by_default(tmp_path: Path) -> None:
@@ -198,6 +206,7 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     microsoft_idx = rules.index("RULE-SET,microsoft,🪟 Microsoft")
     google_idx = rules.index("GEOSITE,google,🔎 Google")
     developer_idx = rules.index("RULE-SET,developer_global,🛠 Developer")
+    download_cn_idx = rules.index("AND,((RULE-SET,download_domainset),(GEOIP,CN)),DIRECT")
     download_idx = rules.index("RULE-SET,download_domainset,⬇️ 下载")
     cn_ip_idx = rules.index("GEOIP,CN,DIRECT")
 
@@ -208,8 +217,30 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     assert developer_idx < download_idx
     assert rules.index("DOMAIN-SUFFIX,npmmirror.com,DIRECT") < developer_idx
     assert rules.index("DOMAIN-SUFFIX,goproxy.cn,DIRECT") < developer_idx
+    assert rules.index("DOMAIN-SUFFIX,go.dev,🛠 Developer") < google_idx
+    assert rules.index("DOMAIN,marketplace.visualstudio.com,🛠 Developer") < microsoft_idx
+    assert developer_idx < download_cn_idx
+    assert download_cn_idx < download_idx
     assert download_idx < cn_ip_idx
     assert "GEOIP,CN,DIRECT,no-resolve" not in rules
+
+
+def test_mihomo_splits_domestic_direct_domain_and_ip_rules(tmp_path: Path) -> None:
+    config = _render_config(tmp_path)
+    rules = config["rules"]
+    providers = config["rule-providers"]
+    github_idx = rules.index("DOMAIN-SUFFIX,github.com,💻 GitHub")
+    cn_ip_idx = rules.index("GEOIP,CN,DIRECT")
+
+    assert "bilibili_direct_domain" in providers
+    assert "bilibili_direct_ip" in providers
+    assert "tencent_direct_ip" in providers
+    assert "tencent_direct_domain" not in providers
+    assert rules.index("RULE-SET,bilibili_direct_domain,DIRECT") < github_idx
+    assert rules.index("RULE-SET,bilibili_direct_ip,DIRECT,no-resolve") < cn_ip_idx
+    assert rules.index("RULE-SET,bilibili_direct_domain,DIRECT") < rules.index(
+        "RULE-SET,bilibili_direct_ip,DIRECT,no-resolve"
+    )
 
 
 def test_mihomo_only_renders_rule_providers_referenced_by_rules(tmp_path: Path) -> None:
@@ -224,7 +255,8 @@ def test_mihomo_only_renders_rule_providers_referenced_by_rules(tmp_path: Path) 
     assert "private" not in providers
     assert "download_domainset" in providers
     assert "developer_global" in providers
-    assert "bilibili_direct" in providers
+    assert "bilibili_direct_domain" in providers
+    assert "bilibili_direct_ip" in providers
 
 
 def test_mihomo_adds_device_overlay_rules_and_rule_update_proxy(tmp_path: Path) -> None:
@@ -280,6 +312,7 @@ def test_shadowrocket_routes_specific_foreign_services_before_download_and_cn_ip
     assert google_idx < download_idx
     assert developer_idx < download_idx
     assert download_idx < cn_ip_idx
+    assert not any(line.startswith("AND,") for line in lines)
 
 
 def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path) -> None:
@@ -306,8 +339,13 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     assert "🤖 AI = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
     assert "🔎 Google = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
     assert "🛠 Developer = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a" in lines
-    assert "⬇️ 下载 = select,DIRECT,🔁 故障转移,🚀 代理,⚡ 自动选择,node-a" in lines
+    assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,DIRECT,node-a" in lines
     assert "🌐 兜底 = select,DIRECT,🚀 代理,🔁 故障转移,⚡ 自动选择,node-a" in lines
+
+    strict_text = _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf", traffic_saver=False)
+    strict_lines = strict_text.splitlines()
+    assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,DIRECT,node-a" in strict_lines
+    assert "🌐 兜底 = select,🚀 代理,🔁 故障转移,⚡ 自动选择,DIRECT,node-a" in strict_lines
 
 
 def test_shadowrocket_includes_new_sukkaw_layers_and_passes_policy_validation(tmp_path: Path) -> None:
@@ -318,12 +356,15 @@ def test_shadowrocket_includes_new_sukkaw_layers_and_passes_policy_validation(tm
     assert "RULE-SET,https://example.test/sub/rules/shadowrocket/direct.conf,DIRECT" in text
     assert "RULE-SET,https://example.test/sub/rules/shadowrocket/global.conf,🚀 代理" in text
 
-    validate_shadowrocket_config(Path(tmp_path) / "shadowrocket.conf")
+    validate_shadowrocket_config(Path(tmp_path) / "shadowrocket.conf", traffic_saver=True)
+    _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf", traffic_saver=False)
+    validate_shadowrocket_config(Path(tmp_path) / "shadowrocket-strict.conf", traffic_saver=False)
 
 
 def test_generated_configs_route_representative_domains_as_expected(tmp_path: Path) -> None:
     _render_config(tmp_path)
     _render_shadowrocket(tmp_path)
+    _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf", traffic_saver=False)
     rules_root = tmp_path / "rules"
     for client in ("mihomo", "shadowrocket"):
         for rule_id in RULE_IDS:
@@ -361,7 +402,7 @@ def test_generated_configs_route_representative_domains_as_expected(tmp_path: Pa
     (rules_root / "shadowrocket" / "ai.conf").write_text("DOMAIN-SUFFIX,chatgpt.com\n", encoding="utf-8")
     (rules_root / "mihomo" / "domestic.txt").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
     (rules_root / "mihomo" / "domestic_non_ip.txt").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
-    (rules_root / "mihomo" / "bilibili_direct.txt").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
+    (rules_root / "mihomo" / "bilibili_direct_domain.txt").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
     (rules_root / "mihomo" / "stream_non_ip.txt").write_text("DOMAIN-SUFFIX,youtube.com\n", encoding="utf-8")
     (rules_root / "mihomo" / "developer_global.txt").write_text("DOMAIN-SUFFIX,pypi.org\n", encoding="utf-8")
     (rules_root / "shadowrocket" / "domestic.conf").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
@@ -378,6 +419,7 @@ def test_generated_configs_route_representative_domains_as_expected(tmp_path: Pa
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "bilibili.com").policy == "DIRECT"
     assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "bilibili.com").policy == "DIRECT"
     assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "pypi.org").policy == "🛠 Developer"
+    assert route_shadowrocket_domain(tmp_path / "shadowrocket-strict.conf", "pypi.org").policy == "🛠 Developer"
 
     expectations = tmp_path / "expectations.yaml"
     expectations.write_text(
@@ -396,5 +438,6 @@ domains:
     validate_route_expectations(
         mihomo_paths=[tmp_path / "mihomo-full.yaml"],
         shadowrocket_path=tmp_path / "shadowrocket.conf",
+        shadowrocket_strict_path=tmp_path / "shadowrocket-strict.conf",
         expectations_path=expectations,
     )

@@ -3,17 +3,15 @@ rules:
   - GEOIP,private,DIRECT,no-resolve
   - RULE-SET,lan_non_ip,DIRECT
 
-  - RULE-SET,tencent_direct,DIRECT
-  - RULE-SET,alibaba_direct,DIRECT
-  - RULE-SET,baidu_direct,DIRECT
-  - RULE-SET,weibo_direct,DIRECT
-  - RULE-SET,xiaohongshu_direct,DIRECT
-  - RULE-SET,xiaomi_direct,DIRECT
-  - RULE-SET,huawei_direct,DIRECT
-  - RULE-SET,wechat_direct,DIRECT
-  - RULE-SET,bilibili_direct,DIRECT
-  - RULE-SET,neteasemusic_direct,DIRECT
-  - RULE-SET,china_media_direct,DIRECT
+  - RULE-SET,baidu_direct_domain,DIRECT
+  - RULE-SET,weibo_direct_domain,DIRECT
+  - RULE-SET,xiaohongshu_direct_domain,DIRECT
+  - RULE-SET,xiaomi_direct_domain,DIRECT
+  - RULE-SET,huawei_direct_domain,DIRECT
+  - RULE-SET,wechat_direct_domain,DIRECT
+  - RULE-SET,bilibili_direct_domain,DIRECT
+  - RULE-SET,neteasemusic_direct_domain,DIRECT
+  - RULE-SET,china_media_direct_domain,DIRECT
 
   - DOMAIN-SUFFIX,github.com,@GitHub
   - DOMAIN-SUFFIX,github.io,@GitHub
@@ -54,11 +52,40 @@ rules:
   - DOMAIN-SUFFIX,registry.cn-hangzhou.aliyuncs.com,DIRECT
   - DOMAIN-SUFFIX,ccr.ccs.tencentyun.com,DIRECT
 
+  - DOMAIN-SUFFIX,pypi.org,@Developer
+  - DOMAIN-SUFFIX,pythonhosted.org,@Developer
+  - DOMAIN,files.pythonhosted.org,@Developer
+  - DOMAIN-SUFFIX,python.org,@Developer
+  - DOMAIN-SUFFIX,npmjs.org,@Developer
+  - DOMAIN-SUFFIX,npmjs.com,@Developer
   - DOMAIN,registry.npmjs.org,@Developer
   - DOMAIN,replicate.npmjs.com,@Developer
   - DOMAIN,registry.npmjs.com,@Developer
   - DOMAIN,skimdb.npmjs.com,@Developer
+  - DOMAIN-SUFFIX,nodejs.org,@Developer
+  - DOMAIN-SUFFIX,unpkg.com,@Developer
+  - DOMAIN-SUFFIX,go.dev,@Developer
+  - DOMAIN-SUFFIX,golang.org,@Developer
+  - DOMAIN,proxy.golang.org,@Developer
+  - DOMAIN,sum.golang.org,@Developer
+  - DOMAIN-SUFFIX,crates.io,@Developer
+  - DOMAIN-SUFFIX,static.crates.io,@Developer
+  - DOMAIN-SUFFIX,docs.rs,@Developer
+  - DOMAIN-SUFFIX,rust-lang.org,@Developer
+  - DOMAIN-SUFFIX,docker.com,@Developer
+  - DOMAIN-SUFFIX,docker.io,@Developer
+  - DOMAIN,registry-1.docker.io,@Developer
+  - DOMAIN,auth.docker.io,@Developer
+  - DOMAIN,production.cloudflare.docker.com,@Developer
+  - DOMAIN-SUFFIX,quay.io,@Developer
+  - DOMAIN-SUFFIX,jetbrains.com,@Developer
   - DOMAIN,download.jetbrains.com,@Developer
+  - DOMAIN,plugins.jetbrains.com,@Developer
+  - DOMAIN-SUFFIX,vscode.dev,@Developer
+  - DOMAIN,marketplace.visualstudio.com,@Developer
+  - DOMAIN-SUFFIX,huggingface.co,@Developer
+  - DOMAIN-SUFFIX,hf.co,@Developer
+  - DOMAIN-SUFFIX,xethub.hf.co,@Developer
 
   - RULE-SET,ai,@AI
   - RULE-SET,apple_intelligence,@AI
@@ -89,6 +116,8 @@ rules:
 
   - RULE-SET,developer_global,@Developer
 
+  - AND,((RULE-SET,download_domainset),(GEOIP,CN)),DIRECT
+  - AND,((RULE-SET,download_non_ip),(GEOIP,CN)),DIRECT
   - RULE-SET,download_domainset,@Download
   - RULE-SET,download_non_ip,@Download
 
@@ -98,6 +127,13 @@ rules:
   - RULE-SET,telegram_ip,@Telegram,no-resolve
   - RULE-SET,stream_ip,@Streaming,no-resolve
   - RULE-SET,lan_ip,DIRECT,no-resolve
+  - RULE-SET,tencent_direct_ip,DIRECT,no-resolve
+  - RULE-SET,alibaba_direct_ip,DIRECT,no-resolve
+  - RULE-SET,xiaomi_direct_ip,DIRECT,no-resolve
+  - RULE-SET,wechat_direct_ip,DIRECT,no-resolve
+  - RULE-SET,bilibili_direct_ip,DIRECT,no-resolve
+  - RULE-SET,neteasemusic_direct_ip,DIRECT,no-resolve
+  - RULE-SET,china_media_direct_ip,DIRECT,no-resolve
   - RULE-SET,domestic_ip,DIRECT,no-resolve
   - GEOIP,CN,DIRECT
 

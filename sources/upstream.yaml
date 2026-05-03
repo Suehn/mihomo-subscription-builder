@@ -1,418 +1,476 @@
 subscription:
   env_var: UPSTREAM_SUB_URL
-
 artifacts:
   public_base_url_env: PUBLIC_BASE_URL
   default_public_base_url: https://suehn.github.io/mihomo-subscription-builder
-
 network:
   user_agent: mihomo-subscription-builder/0.1
-
 rules:
-  - id: private
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.yaml
-        path: rules/mihomo/private.yaml
-        behavior: domain
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.yaml
-        path: rules/shadowrocket/private.list
-        transform: metacubex_domain_to_shadowrocket
-  - id: cn
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.yaml
-        path: rules/mihomo/cn.yaml
-        behavior: domain
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.yaml
-        path: rules/shadowrocket/cn.list
-        transform: metacubex_domain_to_shadowrocket
-  - id: geolocation_non_cn
-    policy: PROXY
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.yaml
-        path: rules/mihomo/geolocation-!cn.yaml
-        behavior: domain
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.yaml
-        path: rules/shadowrocket/geolocation-!cn.list
-        transform: metacubex_domain_to_shadowrocket
-  - id: cn_ip
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.yaml
-        path: rules/mihomo/cn_ip.yaml
-        behavior: ipcidr
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.yaml
-        path: rules/shadowrocket/cn_ip.list
-        transform: metacubex_ipcidr_to_shadowrocket
-  - id: github
-    policy: GitHub
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/github.yaml
-        path: rules/mihomo/github.yaml
-        behavior: domain
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/github.yaml
-        path: rules/shadowrocket/github.list
-        transform: metacubex_domain_to_shadowrocket
-  - id: google
-    policy: Google
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.yaml
-        path: rules/mihomo/google.yaml
-        behavior: domain
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.yaml
-        path: rules/shadowrocket/google.list
-        transform: metacubex_domain_to_shadowrocket
-  - id: developer_global
-    policy: Developer
-    outputs:
-      mihomo:
-        source_file: rules/custom/developer_global.txt
-        path: rules/mihomo/developer_global.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_file: rules/custom/developer_global.txt
-        path: rules/shadowrocket/developer_global.conf
-  - id: ads
-    policy: REJECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.yaml
-        path: rules/mihomo/category-ads-all.yaml
-        behavior: domain
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.yaml
-        path: rules/shadowrocket/category-ads-all.list
-        transform: metacubex_domain_to_shadowrocket
-  - id: wechat_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/WeChat/WeChat.yaml
-        path: rules/mihomo/wechat.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/WeChat/WeChat.list
-        path: rules/shadowrocket/wechat.list
-  - id: bilibili_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/BiliBili/BiliBili.yaml
-        path: rules/mihomo/bilibili.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/BiliBili/BiliBili.list
-        path: rules/shadowrocket/bilibili.list
-  - id: neteasemusic_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/NetEaseMusic/NetEaseMusic.yaml
-        path: rules/mihomo/neteasemusic.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/NetEaseMusic/NetEaseMusic.list
-        path: rules/shadowrocket/neteasemusic.list
-  - id: china_media_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/ChinaMedia/ChinaMedia.yaml
-        path: rules/mihomo/china_media.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/ChinaMedia/ChinaMedia.list
-        path: rules/shadowrocket/china_media.list
-  - id: tencent_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Tencent/Tencent.yaml
-        path: rules/mihomo/tencent.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Tencent/Tencent.list
-        path: rules/shadowrocket/tencent.list
-  - id: alibaba_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Alibaba/Alibaba.yaml
-        path: rules/mihomo/alibaba.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Alibaba/Alibaba.list
-        path: rules/shadowrocket/alibaba.list
-  - id: baidu_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Baidu/Baidu.yaml
-        path: rules/mihomo/baidu.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Baidu/Baidu.list
-        path: rules/shadowrocket/baidu.list
-  - id: weibo_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Weibo/Weibo.yaml
-        path: rules/mihomo/weibo.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Weibo/Weibo.list
-        path: rules/shadowrocket/weibo.list
-  - id: xiaohongshu_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/XiaoHongShu/XiaoHongShu.yaml
-        path: rules/mihomo/xiaohongshu.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/XiaoHongShu/XiaoHongShu.list
-        path: rules/shadowrocket/xiaohongshu.list
-  - id: xiaomi_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/XiaoMi/XiaoMi.yaml
-        path: rules/mihomo/xiaomi.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/XiaoMi/XiaoMi.list
-        path: rules/shadowrocket/xiaomi.list
-  - id: huawei_direct
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Huawei/Huawei.yaml
-        path: rules/mihomo/huawei.yaml
-        behavior: classical
-      shadowrocket:
-        source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Huawei/Huawei.list
-        path: rules/shadowrocket/huawei.list
-  - id: ai
-    policy: AI
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/ai.txt
-        path: rules/mihomo/ai.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/ai.conf
-        path: rules/shadowrocket/ai.conf
-  - id: apple_intelligence
-    policy: AI
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/apple_intelligence.txt
-        path: rules/mihomo/apple_intelligence.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_intelligence.conf
-        path: rules/shadowrocket/apple_intelligence.conf
-  - id: apple_cdn
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/domainset/apple_cdn.txt
-        path: rules/mihomo/apple_cdn.txt
-        behavior: domain
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/domainset/apple_cdn.conf
-        path: rules/shadowrocket/apple_cdn.conf
-  - id: apple_cn
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/apple_cn.txt
-        path: rules/mihomo/apple_cn.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_cn.conf
-        path: rules/shadowrocket/apple_cn.conf
-  - id: apple_services
-    policy: Apple
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/apple_services.txt
-        path: rules/mihomo/apple_services.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_services.conf
-        path: rules/shadowrocket/apple_services.conf
-  - id: microsoft_cdn
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/microsoft_cdn.txt
-        path: rules/mihomo/microsoft_cdn.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/microsoft_cdn.conf
-        path: rules/shadowrocket/microsoft_cdn.conf
-  - id: microsoft
-    policy: Microsoft
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/microsoft.txt
-        path: rules/mihomo/microsoft.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/microsoft.conf
-        path: rules/shadowrocket/microsoft.conf
-  - id: telegram_non_ip
-    policy: Telegram
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/telegram.txt
-        path: rules/mihomo/telegram.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/telegram.conf
-        path: rules/shadowrocket/telegram.conf
-  - id: telegram_ip
-    policy: Telegram
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/ip/telegram.txt
-        path: rules/mihomo/telegram_ip.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/ip/telegram.conf
-        path: rules/shadowrocket/telegram_ip.conf
-  - id: stream_non_ip
-    policy: Streaming
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/stream.txt
-        path: rules/mihomo/stream.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/stream.conf
-        path: rules/shadowrocket/stream.conf
-  - id: stream_ip
-    policy: Streaming
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/ip/stream.txt
-        path: rules/mihomo/stream_ip.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/ip/stream.conf
-        path: rules/shadowrocket/stream_ip.conf
-  - id: download_domainset
-    policy: Download
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/domainset/download.txt
-        path: rules/mihomo/download_domainset.txt
-        behavior: domain
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/domainset/download.conf
-        path: rules/shadowrocket/download_domainset.conf
-  - id: download_non_ip
-    policy: Download
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/download.txt
-        path: rules/mihomo/download_non_ip.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/download.conf
-        path: rules/shadowrocket/download_non_ip.conf
-  - id: direct_non_ip
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/direct.txt
-        path: rules/mihomo/direct.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/direct.conf
-        path: rules/shadowrocket/direct.conf
-  - id: global_non_ip
-    policy: PROXY
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/global.txt
-        path: rules/mihomo/global.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/global.conf
-        path: rules/shadowrocket/global.conf
-  - id: lan_non_ip
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/lan.txt
-        path: rules/mihomo/lan.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/lan.conf
-        path: rules/shadowrocket/lan.conf
-  - id: lan_ip
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/ip/lan.txt
-        path: rules/mihomo/lan_ip.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/ip/lan.conf
-        path: rules/shadowrocket/lan_ip.conf
-  - id: domestic_non_ip
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/domestic.txt
-        path: rules/mihomo/domestic.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/non_ip/domestic.conf
-        path: rules/shadowrocket/domestic.conf
-  - id: domestic_ip
-    policy: DIRECT
-    outputs:
-      mihomo:
-        source_url: https://ruleset-mirror.skk.moe/Clash/ip/domestic.txt
-        path: rules/mihomo/domestic_ip.txt
-        behavior: classical
-        format: text
-      shadowrocket:
-        source_url: https://ruleset-mirror.skk.moe/List/ip/domestic.conf
-        path: rules/shadowrocket/domestic_ip.conf
+- id: private
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.yaml
+      path: rules/mihomo/private.yaml
+      behavior: domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.yaml
+      path: rules/shadowrocket/private.list
+      transform: metacubex_domain_to_shadowrocket
+- id: cn
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.yaml
+      path: rules/mihomo/cn.yaml
+      behavior: domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.yaml
+      path: rules/shadowrocket/cn.list
+      transform: metacubex_domain_to_shadowrocket
+- id: geolocation_non_cn
+  policy: PROXY
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.yaml
+      path: rules/mihomo/geolocation-!cn.yaml
+      behavior: domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.yaml
+      path: rules/shadowrocket/geolocation-!cn.list
+      transform: metacubex_domain_to_shadowrocket
+- id: cn_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.yaml
+      path: rules/mihomo/cn_ip.yaml
+      behavior: ipcidr
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.yaml
+      path: rules/shadowrocket/cn_ip.list
+      transform: metacubex_ipcidr_to_shadowrocket
+- id: github
+  policy: GitHub
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/github.yaml
+      path: rules/mihomo/github.yaml
+      behavior: domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/github.yaml
+      path: rules/shadowrocket/github.list
+      transform: metacubex_domain_to_shadowrocket
+- id: google
+  policy: Google
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.yaml
+      path: rules/mihomo/google.yaml
+      behavior: domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.yaml
+      path: rules/shadowrocket/google.list
+      transform: metacubex_domain_to_shadowrocket
+- id: developer_global
+  policy: Developer
+  outputs:
+    mihomo:
+      source_file: rules/custom/developer_global.txt
+      path: rules/mihomo/developer_global.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_file: rules/custom/developer_global.txt
+      path: rules/shadowrocket/developer_global.conf
+- id: ads
+  policy: REJECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.yaml
+      path: rules/mihomo/category-ads-all.yaml
+      behavior: domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.yaml
+      path: rules/shadowrocket/category-ads-all.list
+      transform: metacubex_domain_to_shadowrocket
+- id: wechat_direct_domain
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/WeChat/WeChat.yaml
+      path: rules/mihomo/wechat_domain.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/WeChat/WeChat.list
+      path: rules/shadowrocket/wechat.list
+- id: wechat_direct_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/WeChat/WeChat.yaml
+      path: rules/mihomo/wechat_ip.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_ip
+- id: bilibili_direct_domain
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/BiliBili/BiliBili.yaml
+      path: rules/mihomo/bilibili_domain.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/BiliBili/BiliBili.list
+      path: rules/shadowrocket/bilibili.list
+- id: bilibili_direct_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/BiliBili/BiliBili.yaml
+      path: rules/mihomo/bilibili_ip.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_ip
+- id: neteasemusic_direct_domain
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/NetEaseMusic/NetEaseMusic.yaml
+      path: rules/mihomo/neteasemusic_domain.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/NetEaseMusic/NetEaseMusic.list
+      path: rules/shadowrocket/neteasemusic.list
+- id: neteasemusic_direct_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/NetEaseMusic/NetEaseMusic.yaml
+      path: rules/mihomo/neteasemusic_ip.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_ip
+- id: china_media_direct_domain
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/ChinaMedia/ChinaMedia.yaml
+      path: rules/mihomo/china_media_domain.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/ChinaMedia/ChinaMedia.list
+      path: rules/shadowrocket/china_media.list
+- id: china_media_direct_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/ChinaMedia/ChinaMedia.yaml
+      path: rules/mihomo/china_media_ip.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_ip
+- id: tencent_direct_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Tencent/Tencent.yaml
+      path: rules/mihomo/tencent_ip.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_ip
+- id: alibaba_direct_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Alibaba/Alibaba.yaml
+      path: rules/mihomo/alibaba_ip.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_ip
+- id: baidu_direct_domain
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Baidu/Baidu.yaml
+      path: rules/mihomo/baidu_domain.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Baidu/Baidu.list
+      path: rules/shadowrocket/baidu.list
+- id: weibo_direct_domain
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Weibo/Weibo.yaml
+      path: rules/mihomo/weibo_domain.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Weibo/Weibo.list
+      path: rules/shadowrocket/weibo.list
+- id: xiaohongshu_direct_domain
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/XiaoHongShu/XiaoHongShu.yaml
+      path: rules/mihomo/xiaohongshu_domain.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/XiaoHongShu/XiaoHongShu.list
+      path: rules/shadowrocket/xiaohongshu.list
+- id: xiaomi_direct_domain
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/XiaoMi/XiaoMi.yaml
+      path: rules/mihomo/xiaomi_domain.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/XiaoMi/XiaoMi.list
+      path: rules/shadowrocket/xiaomi.list
+- id: xiaomi_direct_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/XiaoMi/XiaoMi.yaml
+      path: rules/mihomo/xiaomi_ip.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_ip
+- id: huawei_direct_domain
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Huawei/Huawei.yaml
+      path: rules/mihomo/huawei_domain.txt
+      behavior: classical
+      format: text
+      transform: clash_classical_domain
+    shadowrocket:
+      source_url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Huawei/Huawei.list
+      path: rules/shadowrocket/huawei.list
+- id: ai
+  policy: AI
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/ai.txt
+      path: rules/mihomo/ai.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/ai.conf
+      path: rules/shadowrocket/ai.conf
+- id: apple_intelligence
+  policy: AI
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/apple_intelligence.txt
+      path: rules/mihomo/apple_intelligence.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_intelligence.conf
+      path: rules/shadowrocket/apple_intelligence.conf
+- id: apple_cdn
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/domainset/apple_cdn.txt
+      path: rules/mihomo/apple_cdn.txt
+      behavior: domain
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/domainset/apple_cdn.conf
+      path: rules/shadowrocket/apple_cdn.conf
+- id: apple_cn
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/apple_cn.txt
+      path: rules/mihomo/apple_cn.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_cn.conf
+      path: rules/shadowrocket/apple_cn.conf
+- id: apple_services
+  policy: Apple
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/apple_services.txt
+      path: rules/mihomo/apple_services.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_services.conf
+      path: rules/shadowrocket/apple_services.conf
+- id: microsoft_cdn
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/microsoft_cdn.txt
+      path: rules/mihomo/microsoft_cdn.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/microsoft_cdn.conf
+      path: rules/shadowrocket/microsoft_cdn.conf
+- id: microsoft
+  policy: Microsoft
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/microsoft.txt
+      path: rules/mihomo/microsoft.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/microsoft.conf
+      path: rules/shadowrocket/microsoft.conf
+- id: telegram_non_ip
+  policy: Telegram
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/telegram.txt
+      path: rules/mihomo/telegram.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/telegram.conf
+      path: rules/shadowrocket/telegram.conf
+- id: telegram_ip
+  policy: Telegram
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/ip/telegram.txt
+      path: rules/mihomo/telegram_ip.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/ip/telegram.conf
+      path: rules/shadowrocket/telegram_ip.conf
+- id: stream_non_ip
+  policy: Streaming
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/stream.txt
+      path: rules/mihomo/stream.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/stream.conf
+      path: rules/shadowrocket/stream.conf
+- id: stream_ip
+  policy: Streaming
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/ip/stream.txt
+      path: rules/mihomo/stream_ip.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/ip/stream.conf
+      path: rules/shadowrocket/stream_ip.conf
+- id: download_domainset
+  policy: Download
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/domainset/download.txt
+      path: rules/mihomo/download_domainset.txt
+      behavior: domain
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/domainset/download.conf
+      path: rules/shadowrocket/download_domainset.conf
+- id: download_non_ip
+  policy: Download
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/download.txt
+      path: rules/mihomo/download_non_ip.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/download.conf
+      path: rules/shadowrocket/download_non_ip.conf
+- id: direct_non_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/direct.txt
+      path: rules/mihomo/direct.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/direct.conf
+      path: rules/shadowrocket/direct.conf
+- id: global_non_ip
+  policy: PROXY
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/global.txt
+      path: rules/mihomo/global.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/global.conf
+      path: rules/shadowrocket/global.conf
+- id: lan_non_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/lan.txt
+      path: rules/mihomo/lan.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/lan.conf
+      path: rules/shadowrocket/lan.conf
+- id: lan_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/ip/lan.txt
+      path: rules/mihomo/lan_ip.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/ip/lan.conf
+      path: rules/shadowrocket/lan_ip.conf
+- id: domestic_non_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/non_ip/domestic.txt
+      path: rules/mihomo/domestic.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/non_ip/domestic.conf
+      path: rules/shadowrocket/domestic.conf
+- id: domestic_ip
+  policy: DIRECT
+  outputs:
+    mihomo:
+      source_url: https://ruleset-mirror.skk.moe/Clash/ip/domestic.txt
+      path: rules/mihomo/domestic_ip.txt
+      behavior: classical
+      format: text
+    shadowrocket:
+      source_url: https://ruleset-mirror.skk.moe/List/ip/domestic.conf
+      path: rules/shadowrocket/domestic_ip.conf

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import ipaddress
 import json
 from pathlib import Path
 import time
@@ -85,11 +87,82 @@ def _convert_metacubex_ip_yaml_to_shadowrocket(content: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _payload_lines_from_content(content: str) -> list[str]:
+    try:
+        data = yaml.safe_load(content)
+    except yaml.YAMLError:
+        data = None
+    if isinstance(data, dict) and isinstance(data.get("payload"), list):
+        return [str(item).strip() for item in data["payload"] if str(item).strip()]
+    return [line.strip() for line in content.splitlines() if line.strip() and not line.lstrip().startswith("#")]
+
+
+IP_RULE_KINDS = {"IP-CIDR", "IP-CIDR6", "IP-ASN", "GEOIP"}
+PROCESS_RULE_KINDS = {"PROCESS-NAME", "PROCESS-PATH", "PROCESS-NAME-REGEX"}
+DOMAIN_RULE_KINDS = {
+    "DOMAIN",
+    "DOMAIN-SUFFIX",
+    "DOMAIN-KEYWORD",
+    "DOMAIN-REGEX",
+    "GEOSITE",
+    "HOST",
+    "HOST-SUFFIX",
+    "HOST-KEYWORD",
+    "URL-REGEX",
+}
+
+
+def _rule_kind(line: str) -> str:
+    if "," in line:
+        return line.split(",", 1)[0].strip()
+    try:
+        ipaddress.ip_network(line, strict=False)
+        return "IP-CIDR6" if ":" in line else "IP-CIDR"
+    except ValueError:
+        pass
+    if line.startswith(("+.", ".")) or any(ch.isalpha() for ch in line):
+        return "DOMAIN-LIKE"
+    return "UNKNOWN"
+
+
+def _is_ip_rule(line: str) -> bool:
+    return _rule_kind(line) in IP_RULE_KINDS
+
+
+def _is_process_rule(line: str) -> bool:
+    return _rule_kind(line) in PROCESS_RULE_KINDS
+
+
+def _is_domain_rule(line: str) -> bool:
+    return _rule_kind(line) in DOMAIN_RULE_KINDS or _rule_kind(line) == "DOMAIN-LIKE"
+
+
+def _convert_clash_classical_non_ip(content: str) -> str:
+    lines = [line for line in _payload_lines_from_content(content) if not _is_ip_rule(line)]
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def _convert_clash_classical_domain(content: str) -> str:
+    lines = [line for line in _payload_lines_from_content(content) if _is_domain_rule(line)]
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def _convert_clash_classical_ip(content: str) -> str:
+    lines = [line for line in _payload_lines_from_content(content) if _is_ip_rule(line)]
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
 def _transform_content(content: str, output: RuleOutput) -> str:
     if output.transform == "metacubex_domain_to_shadowrocket":
         return _convert_metacubex_domain_yaml_to_shadowrocket(content)
     if output.transform == "metacubex_ipcidr_to_shadowrocket":
         return _convert_metacubex_ip_yaml_to_shadowrocket(content)
+    if output.transform == "clash_classical_non_ip":
+        return _convert_clash_classical_non_ip(content)
+    if output.transform == "clash_classical_domain":
+        return _convert_clash_classical_domain(content)
+    if output.transform == "clash_classical_ip":
+        return _convert_clash_classical_ip(content)
     return content if content.endswith("\n") else content + "\n"
 
 
@@ -133,5 +206,39 @@ def write_rule_manifest(manifest: dict[str, list[BuiltRule]], output_path: Path)
         ]
         for client, items in manifest.items()
     }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _audit_rule_file(path: Path) -> dict[str, object]:
+    content = path.read_text(encoding="utf-8")
+    lines = _payload_lines_from_content(content)
+    sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    return {
+        "line_count": len(lines),
+        "domain_count": sum(1 for line in lines if _is_domain_rule(line)),
+        "ip_count": sum(1 for line in lines if _is_ip_rule(line)),
+        "process_count": sum(1 for line in lines if _is_process_rule(line)),
+        "sha256": sha256,
+    }
+
+
+def write_rule_audit(manifest: dict[str, list[BuiltRule]], output_root: Path, output_path: Path) -> None:
+    entries: list[dict[str, object]] = []
+    for client, items in manifest.items():
+        for item in items:
+            path = output_root / item.path
+            audit = _audit_rule_file(path)
+            entries.append(
+                {
+                    "rule_id": item.rule_id,
+                    "client": client,
+                    "path": item.path,
+                    "behavior": item.behavior,
+                    "format": item.format,
+                    **audit,
+                }
+            )
+    payload = {"rules": entries}
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

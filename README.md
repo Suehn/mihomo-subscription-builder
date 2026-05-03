@@ -4,7 +4,8 @@ Build a self-hosted remote subscription from a raw upstream node feed. The
 project targets two outputs:
 
 - `mihomo-full.yaml` for Mihomo-compatible clients
-- `shadowrocket.conf` plus `shadowrocket-subscription.txt` for Shadowrocket
+- `shadowrocket.conf`, `shadowrocket-strict.conf`, and
+  `shadowrocket-subscription.txt` for Shadowrocket
 
 The upstream node source is expected to be a raw subscription endpoint provided
 through the private `UPSTREAM_SUB_URL` secret.
@@ -83,8 +84,9 @@ The Mihomo profile follows this high-level order:
 5. Foreign service groups: AI, Apple Intelligence, GitHub, Google, Telegram.
 6. Apple and Microsoft split rules: China/CDN paths direct, global services in
    named groups.
-7. Streaming, domestic non-IP, `GEOSITE,cn,DIRECT`, developer-global, download,
-   global, `geolocation-!cn`, IP rules, `GEOIP,CN,DIRECT`, final fallback.
+7. Streaming, domestic non-IP, `GEOSITE,cn,DIRECT`, developer-global, dynamic
+   download split, global, `geolocation-!cn`, IP rules, `GEOIP,CN,DIRECT`, final
+   fallback.
 
 The key tail rule is:
 
@@ -98,6 +100,20 @@ domains that were not caught by domestic domain rules resolve to a CN IP and go
 DIRECT. `MATCH` still points to the `🌐 兜底` group, whose Mihomo default is
 proxy-first, so unknown non-CN traffic does not silently fall back to DIRECT.
 
+Download is split before the broad download group:
+
+```yaml
+- AND,((RULE-SET,download_domainset),(GEOIP,CN)),DIRECT
+- AND,((RULE-SET,download_non_ip),(GEOIP,CN)),DIRECT
+- RULE-SET,download_domainset,⬇️ 下载
+- RULE-SET,download_non_ip,⬇️ 下载
+```
+
+This means domestic download candidates can still go DIRECT after CN IP
+resolution, while non-CN download candidates use the proxy-first download group.
+Shadowrocket does not render Mihomo logical rules, so iOS keeps simpler
+Traffic-Saver semantics and relies on explicit pins plus DIRECT final fallback.
+
 ### 3. Proxy Group Defaults
 
 Mihomo and Shadowrocket share the same group names where possible:
@@ -110,8 +126,9 @@ Mihomo and Shadowrocket share the same group names where possible:
   routed to `🤖 AI` instead.
 - `🪟 Microsoft`: defaults proxy-first for global Microsoft services, while
   Microsoft CN/CDN rules are direct before the group.
-- `⬇️ 下载`: Mihomo defaults proxy/fallback first; iOS defaults DIRECT first for
-  traffic saving.
+- `⬇️ 下载`: proxy/fallback first on every generated profile. Domestic download
+  candidates are handled by earlier domestic mirrors and Mihomo's
+  `AND(download,GEOIP,CN)` split, not by making the whole download group DIRECT.
 - `🌐 兜底`: Mihomo defaults proxy-first; iOS defaults DIRECT first.
 
 This split is deliberate. Desktop should protect unknown foreign traffic more
@@ -154,7 +171,8 @@ that can open third-party foreign links.
 `dist/shadowrocket.conf` is intentionally Traffic-Saver first:
 
 - Domestic domains, domestic media, domestic mirrors, and CN IP rules go DIRECT.
-- `⬇️ 下载` defaults DIRECT first.
+- `⬇️ 下载` defaults proxy-first so known foreign software/object-storage downloads
+  are not forced to direct.
 - `🌐 兜底` defaults DIRECT first.
 - GitHub, AI, Google, Developer, Telegram, Microsoft, and streaming groups still
   default proxy-first.
@@ -169,6 +187,11 @@ If proxy traffic is expensive or the phone is mostly used for domestic apps,
 Shadowrocket should keep the generated Traffic-Saver behavior. If a specific
 foreign unknown site fails on iOS, add a small explicit pin instead of changing
 the whole iOS `FINAL` back to proxy-first.
+
+`dist/shadowrocket-strict.conf` is generated as a fallback profile. It keeps the
+same rules and proxy-first download group, but makes `🌐 兜底` proxy-first. Use it
+only when iOS needs desktop-like foreign recall; the default phone profile remains
+Traffic-Saver.
 
 ## Update And Maintenance Model
 
@@ -186,6 +209,8 @@ The rule source of truth is kept in reviewable templates:
   group defaults.
 - `config/route-expectations.yaml`: representative domain routing tests.
 - `rules/custom/developer_global.txt`: small local developer ecosystem list.
+- `build/rule-audit.json`: generated provider manifest with line counts,
+  domain/IP/process counts, and sha256 hashes for drift checks.
 
 Generated files land in `dist/` and should not be edited manually. For local
 Clash Verge changes, update the source templates, regenerate, validate, commit,
@@ -204,6 +229,9 @@ push, then update the client profile from the published URL.
   GitHub assets, AI domains, Telegram, Google, YouTube/Netflix, common Chinese
   video sites, domestic mirrors, Microsoft CDN, JetBrains downloads, npm/PyPI,
   Hugging Face, and CN direct behavior.
+- Rule-provider audit data from `build/rule-audit.json`, including empty-provider
+  checks, non-IP provider IP leakage checks, and strict Mihomo split checks for
+  domestic direct domain/IP providers.
 
 `python -m pytest` covers renderer behavior, local rule source handling,
 Traffic-Saver Shadowrocket group defaults, overlay insertion order, and route
@@ -241,6 +269,7 @@ Generated files land in `dist/`:
 - `dist/mihomo-full.yaml`
 - `dist/mihomo-android.yaml`
 - `dist/shadowrocket.conf`
+- `dist/shadowrocket-strict.conf`
 - `dist/shadowrocket-subscription.txt`
 - `dist/shadowrocket-uris.txt`
 - `dist/index.html`
@@ -262,7 +291,8 @@ Shadowrocket imports VLESS/Reality subscriptions reliably from a remote
 subscription URL, but local `[Proxy]` serialization varies between app builds.
 This project therefore publishes both:
 
-- `shadowrocket.conf` for routing policy and groups
+- `shadowrocket.conf` for Traffic-Saver routing policy and groups
+- `shadowrocket-strict.conf` for a proxy-first iOS final fallback variant
 - `shadowrocket-subscription.txt` as the canonical node subscription fallback
 
 If a future Shadowrocket build rejects the generated local VLESS line inside

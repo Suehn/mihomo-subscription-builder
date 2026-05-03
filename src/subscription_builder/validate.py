@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import yaml
 
@@ -8,6 +9,8 @@ from .render import GROUP_LABELS
 
 
 BUILTIN_POLICIES = {"DIRECT", "REJECT", "REJECT-DROP", "PASS"}
+LOGIC_RULE_TYPES = {"AND", "OR", "NOT"}
+RULE_SET_REF_RE = re.compile(r"RULE-SET,([A-Za-z0-9_.!@-]+)")
 SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_FIRST = [
     "PROXY",
     "GitHub",
@@ -63,9 +66,14 @@ def _first_index_contains(rules: list[str], needle: str) -> int:
 
 
 def _policy_from_rule(rule: str) -> str | None:
-    parts = rule.split(",")
-    if not parts:
+    if not rule:
         return None
+
+    rule_type = rule.split(",", 1)[0]
+    if rule_type in LOGIC_RULE_TYPES:
+        return rule.rsplit(",", 1)[-1]
+
+    parts = rule.split(",")
     if parts[0] in {"MATCH", "FINAL"}:
         return parts[1] if len(parts) >= 2 else None
     return parts[2] if len(parts) >= 3 else None
@@ -89,9 +97,11 @@ def _validate_rule_providers(config: dict[str, object]) -> None:
 
     missing_provider_ids: set[str] = set()
     for rule in config.get("rules", []):
-        parts = str(rule).split(",")
-        if len(parts) >= 2 and parts[0] == "RULE-SET" and parts[1] not in providers:
-            missing_provider_ids.add(parts[1])
+        rule_text = str(rule)
+        for match in RULE_SET_REF_RE.finditer(rule_text):
+            provider_id = match.group(1)
+            if provider_id not in providers:
+                missing_provider_ids.add(provider_id)
     if missing_provider_ids:
         raise ValueError(f"Mihomo rules reference missing rule-providers: {sorted(missing_provider_ids)}")
 
@@ -169,6 +179,52 @@ def validate_mihomo_config(config_path: Path, validation_path: Path) -> None:
     _validate_rule_providers(config)
 
 
+def validate_rule_audit(audit_path: Path) -> None:
+    payload = yaml.safe_load(audit_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("rules"), list):
+        raise TypeError(f"{audit_path} must contain a rules list")
+
+    entries = payload["rules"]
+    if not entries:
+        raise ValueError("Rule audit has no entries")
+
+    seen: set[tuple[str, str]] = set()
+    errors: list[str] = []
+    for raw_entry in entries:
+        if not isinstance(raw_entry, dict):
+            raise TypeError("Rule audit entries must be mappings")
+        rule_id = str(raw_entry.get("rule_id", ""))
+        client = str(raw_entry.get("client", ""))
+        key = (client, rule_id)
+        if key in seen:
+            errors.append(f"duplicate audit entry: {client}/{rule_id}")
+        seen.add(key)
+
+        line_count = int(raw_entry.get("line_count", 0))
+        domain_count = int(raw_entry.get("domain_count", 0))
+        ip_count = int(raw_entry.get("ip_count", 0))
+        process_count = int(raw_entry.get("process_count", 0))
+        sha256 = str(raw_entry.get("sha256", ""))
+
+        if line_count <= 0:
+            errors.append(f"empty rule provider: {client}/{rule_id}")
+        if len(sha256) != 64:
+            errors.append(f"invalid sha256 for rule provider: {client}/{rule_id}")
+        if rule_id.endswith("_non_ip") and ip_count:
+            errors.append(f"non_ip provider contains IP rules: {client}/{rule_id}")
+        if client == "mihomo" and rule_id.endswith("_direct_domain") and ip_count:
+            errors.append(f"direct domain provider contains IP rules: {client}/{rule_id}")
+        if client == "mihomo" and rule_id.endswith("_direct_domain") and process_count:
+            errors.append(f"direct domain provider contains process rules: {client}/{rule_id}")
+        if client == "mihomo" and rule_id.endswith("_direct_ip") and domain_count:
+            errors.append(f"direct IP provider contains domain rules: {client}/{rule_id}")
+        if client == "mihomo" and rule_id.endswith("_direct_ip") and process_count:
+            errors.append(f"direct IP provider contains process rules: {client}/{rule_id}")
+
+    if errors:
+        raise ValueError("Rule audit failures:\n" + "\n".join(errors))
+
+
 def _shadowrocket_section(lines: list[str], name: str) -> list[str]:
     start_marker = f"[{name}]"
     try:
@@ -195,7 +251,7 @@ def _shadowrocket_groups(lines: list[str]) -> dict[str, list[str]]:
     return groups
 
 
-def validate_shadowrocket_config(config_path: Path) -> None:
+def validate_shadowrocket_config(config_path: Path, *, traffic_saver: bool = True) -> None:
     lines = config_path.read_text(encoding="utf-8").splitlines()
     for section in ("[General]", "[Proxy]", "[Proxy Group]", "[Rule]"):
         if section not in lines:
@@ -212,6 +268,22 @@ def validate_shadowrocket_config(config_path: Path) -> None:
             raise ValueError(f"Missing required Shadowrocket proxy group: {group_name}")
         if members[0] == "DIRECT":
             raise ValueError(f"Shadowrocket proxy group defaults to DIRECT: {group_name}")
+
+    final_group_name = GROUP_LABELS["Final"]
+    final_members = groups.get(final_group_name)
+    if not final_members:
+        raise ValueError(f"Missing required Shadowrocket proxy group: {final_group_name}")
+    if traffic_saver and final_members[0] != "DIRECT":
+        raise ValueError(f"Traffic-Saver Shadowrocket Final group must default to DIRECT: {final_group_name}")
+    if not traffic_saver and final_members[0] == "DIRECT":
+        raise ValueError(f"Strict Shadowrocket Final group must not default to DIRECT: {final_group_name}")
+
+    download_group_name = GROUP_LABELS["Download"]
+    download_members = groups.get(download_group_name)
+    if not download_members:
+        raise ValueError(f"Missing required Shadowrocket proxy group: {download_group_name}")
+    if download_members[0] == "DIRECT":
+        raise ValueError(f"Shadowrocket Download group must not default to DIRECT: {download_group_name}")
 
     rules = _shadowrocket_section(lines, "Rule")
     if not rules:

@@ -58,6 +58,20 @@ def fetch_and_parse_nodes(url: str, user_agent: str) -> list[ProxyNode]:
     return nodes
 
 
+def read_nodes_json(input_path: Path) -> list[ProxyNode]:
+    data = json.loads(input_path.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise TypeError(f"Cached nodes file must contain a list: {input_path}")
+    nodes: list[ProxyNode] = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise TypeError(f"Cached node entries must be mappings: {input_path}")
+        nodes.append(ProxyNode(**item))
+    if not nodes:
+        raise ValueError(f"Cached nodes file has no nodes: {input_path}")
+    return nodes
+
+
 def write_nodes_json(nodes: Iterable[ProxyNode], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = [asdict(node) for node in nodes]
