@@ -24,35 +24,35 @@ def test_split_links_filters_blank_lines() -> None:
 
 def test_parse_vless_reality_node() -> None:
     uri = (
-        "vless://abcfaa41-a869-473d-a6fa-f792c0f23b61@vms.217777.xyz:26767"
-        "?security=reality&type=tcp&sni=aws.amazon.com&fp=chrome&pbk=Mfb2huSHHeLHeaaAapwJx_gLqaiLRUzMuvvSPVJpbkM"
-        "&sid=b4f871#Suehn-Suehn-293.31GB%F0%9F%93%8A"
+        "vless://00000000-0000-4000-8000-000000000001@proxy.example.test:443"
+        "?security=reality&type=tcp&sni=example.com&fp=chrome&pbk=0123456789abcdefghijklmnopqrstuvwxyzABCDE"
+        "&sid=123456#example-node"
     )
     node = ProxyNode.from_uri(uri)
     assert node.type == "vless"
-    assert node.server == "vms.217777.xyz"
-    assert node.port == 26767
-    assert node.uuid == "abcfaa41-a869-473d-a6fa-f792c0f23b61"
+    assert node.server == "proxy.example.test"
+    assert node.port == 443
+    assert node.uuid == "00000000-0000-4000-8000-000000000001"
     assert node.tls is True
-    assert node.servername == "aws.amazon.com"
+    assert node.servername == "example.com"
     assert node.client_fingerprint == "chrome"
-    assert node.reality_public_key == "Mfb2huSHHeLHeaaAapwJx_gLqaiLRUzMuvvSPVJpbkM"
-    assert node.reality_short_id == "b4f871"
+    assert node.reality_public_key == "0123456789abcdefghijklmnopqrstuvwxyzABCDE"
+    assert node.reality_short_id == "123456"
 
 
 def test_vless_node_renders_for_mihomo() -> None:
     uri = (
-        "vless://abcfaa41-a869-473d-a6fa-f792c0f23b61@vms.217777.xyz:26767"
-        "?security=reality&type=tcp&sni=aws.amazon.com&fp=chrome&pbk=Mfb2huSHHeLHeaaAapwJx_gLqaiLRUzMuvvSPVJpbkM"
-        "&sid=b4f871#Suehn"
+        "vless://00000000-0000-4000-8000-000000000001@proxy.example.test:443"
+        "?security=reality&type=tcp&sni=example.com&fp=chrome&pbk=0123456789abcdefghijklmnopqrstuvwxyzABCDE"
+        "&sid=123456#example-node"
     )
     node = ProxyNode.from_uri(uri)
     rendered = node.to_mihomo_proxy()
     assert rendered["type"] == "vless"
-    assert rendered["server"] == "vms.217777.xyz"
-    assert rendered["uuid"] == "abcfaa41-a869-473d-a6fa-f792c0f23b61"
+    assert rendered["server"] == "proxy.example.test"
+    assert rendered["uuid"] == "00000000-0000-4000-8000-000000000001"
     assert rendered["tls"] is True
     assert rendered["reality-opts"] == {
-        "public-key": "Mfb2huSHHeLHeaaAapwJx_gLqaiLRUzMuvvSPVJpbkM",
-        "short-id": "b4f871",
+        "public-key": "0123456789abcdefghijklmnopqrstuvwxyzABCDE",
+        "short-id": "123456",
     }
