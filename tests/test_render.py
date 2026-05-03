@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 
 from subscription_builder.models import ProxyNode
-from subscription_builder.render import render_mihomo, render_shadowrocket
+from subscription_builder.render import prepare_public_pages, render_mihomo, render_shadowrocket
 from subscription_builder.route_expectations import route_mihomo_domain, route_shadowrocket_domain, validate_route_expectations
 from subscription_builder.rules import BuiltRule
 from subscription_builder.validate import validate_mihomo_config, validate_rule_audit, validate_shadowrocket_config
@@ -151,6 +151,7 @@ def _render_shadowrocket(tmp_path: Path, *, output_name: str = "shadowrocket.con
         project_root=Path.cwd(),
         output_root=tmp_path,
         public_base_url="https://example.test/sub",
+        private_base_url="https://private.example.test/sub",
         nodes=[
             ProxyNode(
                 name="node-a",
@@ -339,6 +340,8 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
 
     assert "ipv6 = false" in lines
     assert "dns-server = https://doh.pub/dns-query,https://dns.alidns.com/dns-query" in lines
+    assert "https://private.example.test/sub/shadowrocket-subscription.txt" in lines[2]
+    assert "https://example.test/sub/shadowrocket-subscription.txt" not in text
     assert "1.1.1.1" not in text
     assert "8.8.8.8" not in text
     assert group_lines[0] == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
@@ -526,3 +529,45 @@ rules:
     )
 
     validate_rule_audit(audit_path, baseline_path)
+
+
+def test_prepare_public_pages_excludes_private_subscription_artifacts(tmp_path: Path) -> None:
+    source_root = tmp_path / "dist"
+    public_root = tmp_path / "public-dist"
+    (source_root / "rules" / "mihomo").mkdir(parents=True)
+    (source_root / "rules" / "shadowrocket").mkdir(parents=True)
+    (source_root / "rules" / "mihomo" / "developer_global.txt").write_text("DOMAIN-SUFFIX,pypi.org\n", encoding="utf-8")
+    (source_root / "rules" / "shadowrocket" / "developer_global.conf").write_text(
+        "DOMAIN-SUFFIX,pypi.org\n",
+        encoding="utf-8",
+    )
+    for private_name in [
+        "mihomo-full.yaml",
+        "mihomo-android.yaml",
+        "shadowrocket.conf",
+        "shadowrocket-strict.conf",
+        "shadowrocket-subscription.txt",
+        "shadowrocket-uris.txt",
+    ]:
+        (source_root / private_name).write_text("node-secret\n", encoding="utf-8")
+
+    prepare_public_pages(
+        source_root=source_root,
+        output_root=public_root,
+        public_base_url="https://example.test/sub",
+    )
+
+    assert (public_root / "rules" / "mihomo" / "developer_global.txt").exists()
+    assert (public_root / "rules" / "shadowrocket" / "developer_global.conf").exists()
+    assert (public_root / ".nojekyll").exists()
+    assert (public_root / ".generated-public-pages").exists()
+    assert "node-secret" not in (public_root / "index.html").read_text(encoding="utf-8")
+    for private_name in [
+        "mihomo-full.yaml",
+        "mihomo-android.yaml",
+        "shadowrocket.conf",
+        "shadowrocket-strict.conf",
+        "shadowrocket-subscription.txt",
+        "shadowrocket-uris.txt",
+    ]:
+        assert not (public_root / private_name).exists()

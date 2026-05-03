@@ -29,6 +29,7 @@ class RuleSpec:
 class ProjectConfig:
     subscription_env_var: str
     public_base_url_env: str
+    private_base_url_env: str
     default_public_base_url: str
     user_agent: str
     rules: list[RuleSpec]
@@ -44,6 +45,11 @@ class ProjectConfig:
     def resolve_public_base_url(self, explicit_url: str | None = None) -> str:
         value = explicit_url or os.environ.get(self.public_base_url_env, "")
         value = value or self.default_public_base_url
+        return value.rstrip("/")
+
+    def resolve_private_base_url(self, explicit_url: str | None = None, *, public_base_url: str | None = None) -> str:
+        value = explicit_url or os.environ.get(self.private_base_url_env, "")
+        value = value or public_base_url or self.resolve_public_base_url()
         return value.rstrip("/")
 
 
@@ -72,6 +78,7 @@ def load_project_config(config_path: Path) -> ProjectConfig:
     return ProjectConfig(
         subscription_env_var=raw["subscription"]["env_var"],
         public_base_url_env=raw["artifacts"]["public_base_url_env"],
+        private_base_url_env=raw["artifacts"].get("private_base_url_env", "PRIVATE_BASE_URL"),
         default_public_base_url=raw["artifacts"]["default_public_base_url"],
         user_agent=raw["network"]["user_agent"],
         rules=rules,

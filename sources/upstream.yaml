@@ -2,6 +2,7 @@ subscription:
   env_var: UPSTREAM_SUB_URL
 artifacts:
   public_base_url_env: PUBLIC_BASE_URL
+  private_base_url_env: PRIVATE_BASE_URL
   default_public_base_url: https://suehn.github.io/mihomo-subscription-builder
 network:
   user_agent: mihomo-subscription-builder/0.1

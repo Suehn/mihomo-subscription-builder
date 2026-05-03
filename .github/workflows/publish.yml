@@ -23,6 +23,12 @@ jobs:
     env:
       UPSTREAM_SUB_URL: ${{ secrets.UPSTREAM_SUB_URL }}
       PUBLIC_BASE_URL: https://suehn.github.io/mihomo-subscription-builder
+      PRIVATE_BASE_URL: ${{ secrets.PRIVATE_BASE_URL }}
+      PRIVATE_SSH_HOST: ${{ secrets.PRIVATE_SSH_HOST }}
+      PRIVATE_SSH_USER: ${{ secrets.PRIVATE_SSH_USER }}
+      PRIVATE_SSH_PORT: ${{ secrets.PRIVATE_SSH_PORT }}
+      PRIVATE_SSH_PATH: ${{ secrets.PRIVATE_SSH_PATH }}
+      PRIVATE_SSH_KEY: ${{ secrets.PRIVATE_SSH_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,11 +46,36 @@ jobs:
       - name: Run unit tests
         run: python -m pytest
 
+      - name: Select publish mode
+        run: |
+          if [ -n "$PRIVATE_BASE_URL" ] && [ -n "$PRIVATE_SSH_HOST" ] && [ -n "$PRIVATE_SSH_USER" ] && [ -n "$PRIVATE_SSH_PATH" ] && [ -n "$PRIVATE_SSH_KEY" ]; then
+            echo "PRIVATE_DEPLOY_ENABLED=true" >> "$GITHUB_ENV"
+            echo "PAGES_ARTIFACT_PATH=public-dist" >> "$GITHUB_ENV"
+            echo "EFFECTIVE_PRIVATE_BASE_URL=$PRIVATE_BASE_URL" >> "$GITHUB_ENV"
+          else
+            echo "PRIVATE_DEPLOY_ENABLED=false" >> "$GITHUB_ENV"
+            echo "PAGES_ARTIFACT_PATH=dist" >> "$GITHUB_ENV"
+            echo "EFFECTIVE_PRIVATE_BASE_URL=" >> "$GITHUB_ENV"
+          fi
+
       - name: Build artifacts
-        run: python -m subscription_builder.cli build-all
+        run: PRIVATE_BASE_URL="$EFFECTIVE_PRIVATE_BASE_URL" python -m subscription_builder.cli build-all
 
       - name: Validate artifacts
         run: python -m subscription_builder.cli validate
+
+      - name: Prepare public Pages artifact
+        run: python -m subscription_builder.cli prepare-public-pages
+
+      - name: Deploy private full subscriptions
+        if: env.PRIVATE_DEPLOY_ENABLED == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$PRIVATE_SSH_KEY" > ~/.ssh/private_deploy_key
+          chmod 600 ~/.ssh/private_deploy_key
+          SSH_PORT="${PRIVATE_SSH_PORT:-22}"
+          ssh-keyscan -p "$SSH_PORT" "$PRIVATE_SSH_HOST" >> ~/.ssh/known_hosts
+          rsync -az --delete -e "ssh -i ~/.ssh/private_deploy_key -p $SSH_PORT" dist/ "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST:$PRIVATE_SSH_PATH/"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -52,7 +83,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: ${{ env.PAGES_ARTIFACT_PATH }}
 
   deploy:
     environment:

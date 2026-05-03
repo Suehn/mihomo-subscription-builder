@@ -25,6 +25,8 @@ through the private `UPSTREAM_SUB_URL` secret.
 - Renders a Mihomo configuration with self-hosted `rule-providers`
 - Renders a Shadowrocket configuration and also emits URI subscription fallbacks
 - Uses emoji policy groups for easier client-side reading
+- Supports split publishing: public rule files on GitHub Pages, full
+  node-bearing subscriptions on a private static URL
 
 ## Design Principles
 
@@ -253,10 +255,25 @@ instances on high local ports, waits for providers to load, and requests
 representative URLs through the generated mixed-port. This catches runtime
 failures that static YAML validation cannot see.
 
-Important: `mihomo-full.yaml` contains proxy nodes. Publishing `dist/` to
-public GitHub Pages exposes those nodes to anyone with the URL. For private use,
-prefer a local Clash Verge profile, a private static host, or a self-hosted
-subscription service with access control.
+Important: `mihomo-full.yaml`, `mihomo-android.yaml`, `shadowrocket.conf`, and
+`shadowrocket-subscription.txt` contain proxy nodes. They should not stay on
+public GitHub Pages long term.
+
+The intended secure publishing model is split by sensitivity:
+
+- GitHub Pages publishes public rule files only: `public-dist/rules/`.
+- A private static host publishes the full `dist/` directory with node-bearing
+  subscriptions.
+- Mihomo and Shadowrocket still update by URL. The only change is that clients
+  subscribe to the private base URL for full configs, while those configs keep
+  loading rule providers from the public Pages base URL.
+
+GitHub Pages cannot make only selected files private. If full configs must stay
+on the same public Pages URL, node privacy is impossible. This repository keeps a
+legacy fallback in CI: until all private deploy secrets are configured, Actions
+continues uploading `dist/` to Pages so existing subscriptions do not break. Once
+private deploy is configured, the workflow uploads `public-dist/` to Pages and
+deploys full subscriptions to the private host.
 
 ## Local Usage
 
@@ -268,8 +285,10 @@ pip install -e '.[dev]'
 
 export UPSTREAM_SUB_URL="https://example.com/sub/your-token"
 export PUBLIC_BASE_URL="https://suehn.github.io/mihomo-subscription-builder"
+export PRIVATE_BASE_URL="https://private.example.com/mihomo-subscription-builder"
 
 python -m subscription_builder.cli build-all
+python -m subscription_builder.cli prepare-public-pages
 python -m subscription_builder.cli validate
 python -m subscription_builder.cli smoke-runtime
 python -m pytest
@@ -286,13 +305,41 @@ Generated files land in `dist/`:
 - `dist/index.html`
 - `dist/rules/`
 
+The public-safe GitHub Pages artifact lands in `public-dist/`:
+
+- `public-dist/index.html`
+- `public-dist/rules/`
+
+`public-dist/` intentionally excludes all node-bearing full subscription files.
+
 ## GitHub Actions Setup
 
-Create the repository secret:
+Create the required repository secret:
 
 - `UPSTREAM_SUB_URL`
 
-The workflow publishes `dist/` to GitHub Pages. The intended remote is:
+To enable private full-subscription delivery without breaking URL-based updates,
+also create these repository secrets:
+
+- `PRIVATE_BASE_URL`: the HTTPS base URL clients will subscribe to, for example
+  `https://private.example.com/mihomo-subscription-builder`
+- `PRIVATE_SSH_HOST`: private static host
+- `PRIVATE_SSH_USER`: SSH user for deployment
+- `PRIVATE_SSH_PORT`: optional SSH port, defaults to `22`
+- `PRIVATE_SSH_PATH`: remote directory served by `PRIVATE_BASE_URL`
+- `PRIVATE_SSH_KEY`: private key with write access to `PRIVATE_SSH_PATH`
+
+When all private deploy secrets are present, the workflow:
+
+1. Builds full artifacts in `dist/`.
+2. Deploys `dist/` to the private host with `rsync --delete`.
+3. Uploads `public-dist/` to GitHub Pages, so public Pages contains rules only.
+
+When private deploy secrets are incomplete, the workflow keeps legacy behavior
+and uploads `dist/` to GitHub Pages. This is intentional to avoid silently
+breaking existing client subscription URLs before the private endpoint is ready.
+
+The intended repository remote is:
 
 - `https://github.com/Suehn/mihomo-subscription-builder`
 

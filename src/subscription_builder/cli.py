@@ -7,7 +7,7 @@ import sys
 
 from .config import ProjectConfig, load_project_config
 from .nodes import fetch_and_parse_nodes, read_nodes_json, write_nodes_json, write_shadowrocket_uri_artifacts
-from .render import render_index, render_mihomo, render_shadowrocket
+from .render import prepare_public_pages, render_index, render_mihomo, render_shadowrocket
 from .route_expectations import validate_route_expectations
 from .runtime_smoke import run_mihomo_runtime_smoke
 from .rules import build_rules, write_rule_audit, write_rule_manifest
@@ -34,6 +34,7 @@ def _load_context(args: argparse.Namespace) -> tuple[Path, ProjectConfig, Path, 
 def _build_all(args: argparse.Namespace) -> int:
     project_root, config, output_root, build_root = _load_context(args)
     public_base_url = config.resolve_public_base_url(args.public_base_url)
+    private_base_url = config.resolve_private_base_url(args.private_base_url, public_base_url=public_base_url)
     if args.use_cached_nodes:
         nodes = read_nodes_json(build_root / "nodes.json")
     else:
@@ -66,6 +67,7 @@ def _build_all(args: argparse.Namespace) -> int:
         project_root=project_root,
         output_root=output_root,
         public_base_url=public_base_url,
+        private_base_url=private_base_url,
         nodes=nodes,
         manifest=manifest,
         output_name="shadowrocket.conf",
@@ -75,12 +77,21 @@ def _build_all(args: argparse.Namespace) -> int:
         project_root=project_root,
         output_root=output_root,
         public_base_url=public_base_url,
+        private_base_url=private_base_url,
         nodes=nodes,
         manifest=manifest,
         output_name="shadowrocket-strict.conf",
         traffic_saver=False,
     )
-    render_index(output_root=output_root, public_base_url=public_base_url)
+    render_index(output_root=output_root, public_base_url=public_base_url, private_base_url=private_base_url)
+    return 0
+
+
+def _prepare_public_pages(args: argparse.Namespace) -> int:
+    project_root, config, output_root, _ = _load_context(args)
+    public_base_url = config.resolve_public_base_url(args.public_base_url)
+    pages_root = Path(args.output).resolve() if args.output else project_root / "public-dist"
+    prepare_public_pages(source_root=output_root, output_root=pages_root, public_base_url=public_base_url)
     return 0
 
 
@@ -148,6 +159,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=None)
     parser.add_argument("--upstream-url", default=None)
     parser.add_argument("--public-base-url", default=None)
+    parser.add_argument("--private-base-url", default=None)
     parser.add_argument("--mihomo-bin", default=None)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -156,6 +168,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--use-cached-nodes",
         action="store_true",
         help="Use build/nodes.json instead of fetching the upstream subscription.",
+    )
+    public_pages_parser = subparsers.add_parser("prepare-public-pages")
+    public_pages_parser.add_argument(
+        "--output",
+        default=None,
+        help="Output directory for the public rules-only GitHub Pages artifact. Defaults to public-dist.",
     )
     subparsers.add_parser("validate")
     smoke_parser = subparsers.add_parser("smoke-runtime")
@@ -176,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "build-all":
         return _build_all(args)
+    if args.command == "prepare-public-pages":
+        return _prepare_public_pages(args)
     if args.command == "validate":
         return _validate(args)
     if args.command == "smoke-runtime":
