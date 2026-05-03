@@ -8,7 +8,7 @@ from subscription_builder.models import ProxyNode
 from subscription_builder.render import render_mihomo, render_shadowrocket
 from subscription_builder.route_expectations import route_mihomo_domain, route_shadowrocket_domain, validate_route_expectations
 from subscription_builder.rules import BuiltRule
-from subscription_builder.validate import validate_mihomo_config, validate_shadowrocket_config
+from subscription_builder.validate import validate_mihomo_config, validate_rule_audit, validate_shadowrocket_config
 
 
 RULE_IDS = [
@@ -192,9 +192,12 @@ def test_mihomo_download_and_fallback_groups_prefer_proxy(tmp_path: Path) -> Non
     assert config["proxy-groups"][0]["name"] == "🚀 代理"
     assert groups["🪟 Microsoft"][:3] == ["🚀 代理", "🔁 故障转移", "DIRECT"]
     assert groups["🔎 Google"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
-    assert groups["🛠 Developer"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
+    assert groups["💻 GitHub"][:4] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择", "🧭 手动选择"]
+    assert groups["🛠 Developer"][:4] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择", "🧭 手动选择"]
     assert groups["⬇️ 下载"][:3] == ["🔁 故障转移", "🚀 代理", "⚡ 自动选择"]
     assert groups["🌐 兜底"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
+    for group_name in ["💻 GitHub", "🛠 Developer", "📺 流媒体", "⬇️ 下载"]:
+        assert "DIRECT" not in groups[group_name]
 
 
 def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(tmp_path: Path) -> None:
@@ -203,6 +206,8 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
 
     cn_idx = rules.index("GEOSITE,cn,DIRECT")
     github_idx = rules.index("GEOSITE,github,💻 GitHub")
+    github_release_idx = rules.index("DOMAIN-SUFFIX,release-assets.githubusercontent.com,💻 GitHub")
+    github_releases_idx = rules.index("DOMAIN-SUFFIX,github-releases.githubusercontent.com,💻 GitHub")
     microsoft_idx = rules.index("RULE-SET,microsoft,🪟 Microsoft")
     google_idx = rules.index("GEOSITE,google,🔎 Google")
     developer_idx = rules.index("RULE-SET,developer_global,🛠 Developer")
@@ -212,6 +217,8 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
 
     assert cn_idx < download_idx
     assert github_idx < download_idx
+    assert github_release_idx < download_idx
+    assert github_releases_idx < download_idx
     assert microsoft_idx < download_idx
     assert google_idx < download_idx
     assert developer_idx < download_idx
@@ -219,6 +226,7 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     assert rules.index("DOMAIN-SUFFIX,goproxy.cn,DIRECT") < developer_idx
     assert rules.index("DOMAIN-SUFFIX,go.dev,🛠 Developer") < google_idx
     assert rules.index("DOMAIN,marketplace.visualstudio.com,🛠 Developer") < microsoft_idx
+    assert rules.index("DOMAIN-SUFFIX,huggingface.co,🛠 Developer") < download_idx
     assert developer_idx < download_cn_idx
     assert download_cn_idx < download_idx
     assert download_idx < cn_ip_idx
@@ -338,13 +346,15 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     assert "🔁 故障转移 = fallback,node-a,url=https://www.gstatic.com/generate_204,interval=300" in lines
     assert "🤖 AI = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
     assert "🔎 Google = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
-    assert "🛠 Developer = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a" in lines
-    assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,DIRECT,node-a" in lines
+    assert "💻 GitHub = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
+    assert "🛠 Developer = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
+    assert "📺 流媒体 = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
+    assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,🧭 手动选择,node-a" in lines
     assert "🌐 兜底 = select,DIRECT,🚀 代理,🔁 故障转移,⚡ 自动选择,node-a" in lines
 
     strict_text = _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf", traffic_saver=False)
     strict_lines = strict_text.splitlines()
-    assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,DIRECT,node-a" in strict_lines
+    assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,🧭 手动选择,node-a" in strict_lines
     assert "🌐 兜底 = select,🚀 代理,🔁 故障转移,⚡ 自动选择,DIRECT,node-a" in strict_lines
 
 
@@ -391,10 +401,12 @@ def test_generated_configs_route_representative_domains_as_expected(tmp_path: Pa
             provider_path.write_text("", encoding="utf-8")
 
     (rules_root / "mihomo" / "download_domainset.txt").write_text(
-        "release-assets.githubusercontent.com\nregistry.npmjs.org\ndownload.jetbrains.com\n", encoding="utf-8"
+        "release-assets.githubusercontent.com\nregistry.npmjs.org\ndownload.jetbrains.com\nrepo.anaconda.com\n",
+        encoding="utf-8",
     )
     (rules_root / "shadowrocket" / "download_domainset.conf").write_text(
-        "release-assets.githubusercontent.com\nregistry.npmjs.org\ndownload.jetbrains.com\n", encoding="utf-8"
+        "release-assets.githubusercontent.com\nregistry.npmjs.org\ndownload.jetbrains.com\nrepo.anaconda.com\n",
+        encoding="utf-8",
     )
     (rules_root / "mihomo" / "github.list").write_text("+.github.com\n", encoding="utf-8")
     (rules_root / "shadowrocket" / "github.list").write_text("DOMAIN-SUFFIX,github.com\n", encoding="utf-8")
@@ -403,19 +415,53 @@ def test_generated_configs_route_representative_domains_as_expected(tmp_path: Pa
     (rules_root / "mihomo" / "domestic.txt").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
     (rules_root / "mihomo" / "domestic_non_ip.txt").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
     (rules_root / "mihomo" / "bilibili_direct_domain.txt").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
-    (rules_root / "mihomo" / "stream_non_ip.txt").write_text("DOMAIN-SUFFIX,youtube.com\n", encoding="utf-8")
-    (rules_root / "mihomo" / "developer_global.txt").write_text("DOMAIN-SUFFIX,pypi.org\n", encoding="utf-8")
+    (rules_root / "mihomo" / "microsoft.txt").write_text(
+        "DOMAIN-SUFFIX,office.com\nDOMAIN-SUFFIX,live.com\nDOMAIN-SUFFIX,sharepoint.com\n", encoding="utf-8"
+    )
+    (rules_root / "mihomo" / "apple_services.txt").write_text(
+        "DOMAIN-SUFFIX,icloud.com\nDOMAIN-SUFFIX,apple.com\n", encoding="utf-8"
+    )
+    (rules_root / "mihomo" / "telegram_non_ip.txt").write_text("DOMAIN-SUFFIX,telegram.org\n", encoding="utf-8")
+    (rules_root / "mihomo" / "stream_non_ip.txt").write_text(
+        "DOMAIN-SUFFIX,youtube.com\nDOMAIN-SUFFIX,spotify.com\nDOMAIN-SUFFIX,tiktok.com\n", encoding="utf-8"
+    )
+    (rules_root / "mihomo" / "developer_global.txt").write_text(
+        "DOMAIN-SUFFIX,pypi.org\nDOMAIN-SUFFIX,repo.anaconda.com\nDOMAIN-SUFFIX,download.pytorch.org\n"
+        "DOMAIN-SUFFIX,developer.hashicorp.com\n",
+        encoding="utf-8",
+    )
     (rules_root / "shadowrocket" / "domestic.conf").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
     (rules_root / "shadowrocket" / "bilibili.list").write_text("DOMAIN-SUFFIX,bilibili.com\n", encoding="utf-8")
-    (rules_root / "shadowrocket" / "stream.conf").write_text("DOMAIN-SUFFIX,youtube.com\n", encoding="utf-8")
-    (rules_root / "shadowrocket" / "developer_global.conf").write_text("DOMAIN-SUFFIX,pypi.org\n", encoding="utf-8")
+    (rules_root / "shadowrocket" / "microsoft.conf").write_text(
+        "DOMAIN-SUFFIX,office.com\nDOMAIN-SUFFIX,live.com\nDOMAIN-SUFFIX,sharepoint.com\n", encoding="utf-8"
+    )
+    (rules_root / "shadowrocket" / "apple_services.conf").write_text(
+        "DOMAIN-SUFFIX,icloud.com\nDOMAIN-SUFFIX,apple.com\n", encoding="utf-8"
+    )
+    (rules_root / "shadowrocket" / "telegram.conf").write_text("DOMAIN-SUFFIX,telegram.org\n", encoding="utf-8")
+    (rules_root / "shadowrocket" / "stream.conf").write_text(
+        "DOMAIN-SUFFIX,youtube.com\nDOMAIN-SUFFIX,spotify.com\nDOMAIN-SUFFIX,tiktok.com\n", encoding="utf-8"
+    )
+    (rules_root / "shadowrocket" / "developer_global.conf").write_text(
+        "DOMAIN-SUFFIX,pypi.org\nDOMAIN-SUFFIX,repo.anaconda.com\nDOMAIN-SUFFIX,download.pytorch.org\n"
+        "DOMAIN-SUFFIX,developer.hashicorp.com\n",
+        encoding="utf-8",
+    )
 
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "mirrors.aliyun.com").policy == "DIRECT"
     assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "mirrors.aliyun.com").policy == "DIRECT"
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "release-assets.githubusercontent.com").policy == "💻 GitHub"
     assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "release-assets.githubusercontent.com").policy == "💻 GitHub"
+    assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "github-releases.githubusercontent.com").policy == "💻 GitHub"
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "youtube.com").policy == "📺 流媒体"
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "pypi.org").policy == "🛠 Developer"
+    assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "repo.anaconda.com").policy == "🛠 Developer"
+    assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "download.pytorch.org").policy == "🛠 Developer"
+    assert route_shadowrocket_domain(tmp_path / "shadowrocket-strict.conf", "developer.hashicorp.com").policy == "🛠 Developer"
+    assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "office.com").policy == "🪟 Microsoft"
+    assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "icloud.com").policy == "🍎 Apple"
+    assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "spotify.com").policy == "📺 流媒体"
+    assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "telegram.org").policy == "✈️ Telegram"
     assert route_mihomo_domain(tmp_path / "mihomo-full.yaml", "bilibili.com").policy == "DIRECT"
     assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "bilibili.com").policy == "DIRECT"
     assert route_shadowrocket_domain(tmp_path / "shadowrocket.conf", "pypi.org").policy == "🛠 Developer"
@@ -427,9 +473,17 @@ def test_generated_configs_route_representative_domains_as_expected(tmp_path: Pa
 domains:
   mirrors.aliyun.com: DIRECT
   release-assets.githubusercontent.com: "💻 GitHub"
+  github-releases.githubusercontent.com: "💻 GitHub"
   chatgpt.com: "🤖 AI"
   youtube.com: "📺 流媒体"
+  spotify.com: "📺 流媒体"
   pypi.org: "🛠 Developer"
+  repo.anaconda.com: "🛠 Developer"
+  download.pytorch.org: "🛠 Developer"
+  developer.hashicorp.com: "🛠 Developer"
+  office.com: "🪟 Microsoft"
+  icloud.com: "🍎 Apple"
+  telegram.org: "✈️ Telegram"
   bilibili.com: DIRECT
 """.strip()
         + "\n",
@@ -441,3 +495,34 @@ domains:
         shadowrocket_strict_path=tmp_path / "shadowrocket-strict.conf",
         expectations_path=expectations,
     )
+
+
+def test_rule_audit_baseline_validation(tmp_path: Path) -> None:
+    audit_path = tmp_path / "rule-audit.json"
+    baseline_path = tmp_path / "rule-audit-baseline.yaml"
+    audit_path.write_text(
+        """
+rules:
+  - client: mihomo
+    rule_id: developer_global
+    line_count: 80
+    domain_count: 80
+    ip_count: 0
+    process_count: 0
+    sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+""".lstrip(),
+        encoding="utf-8",
+    )
+    baseline_path.write_text(
+        """
+rules:
+  mihomo/developer_global:
+    min_lines: 50
+    max_lines: 300
+    require_domains: true
+    forbid_ips: true
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    validate_rule_audit(audit_path, baseline_path)

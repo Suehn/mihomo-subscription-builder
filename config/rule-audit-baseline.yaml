@@ -1,0 +1,90 @@
+rules:
+  mihomo/ai:
+    min_lines: 20
+    max_lines: 5000
+    require_domains: true
+    forbid_ips: true
+  mihomo/apple_cdn:
+    min_lines: 50
+    max_lines: 5000
+    require_domains: true
+    forbid_ips: true
+  mihomo/apple_services:
+    min_lines: 10
+    max_lines: 2000
+    require_domains: true
+    forbid_ips: true
+  mihomo/developer_global:
+    min_lines: 50
+    max_lines: 300
+    require_domains: true
+    forbid_ips: true
+  mihomo/direct_non_ip:
+    min_lines: 100
+    max_lines: 10000
+    require_domains: true
+    forbid_ips: true
+  mihomo/domestic_non_ip:
+    min_lines: 300
+    max_lines: 20000
+    require_domains: true
+    forbid_ips: true
+  mihomo/download_domainset:
+    min_lines: 500
+    max_lines: 20000
+    require_domains: true
+    forbid_ips: true
+  mihomo/download_non_ip:
+    min_lines: 1
+    max_lines: 1000
+    forbid_ips: true
+  mihomo/global_non_ip:
+    min_lines: 500
+    max_lines: 20000
+    require_domains: true
+    forbid_ips: true
+  mihomo/microsoft:
+    min_lines: 30
+    max_lines: 5000
+    require_domains: true
+    forbid_ips: true
+  mihomo/microsoft_cdn:
+    min_lines: 20
+    max_lines: 5000
+    require_domains: true
+    forbid_ips: true
+  mihomo/stream_non_ip:
+    min_lines: 100
+    max_lines: 10000
+    require_domains: true
+    forbid_ips: true
+  shadowrocket/cn:
+    min_lines: 50000
+    max_lines: 300000
+    require_domains: true
+    forbid_ips: true
+  shadowrocket/developer_global:
+    min_lines: 50
+    max_lines: 300
+    require_domains: true
+    forbid_ips: true
+  shadowrocket/download_domainset:
+    min_lines: 500
+    max_lines: 20000
+    require_domains: true
+    forbid_ips: true
+  shadowrocket/github:
+    min_lines: 10
+    max_lines: 5000
+    require_domains: true
+    forbid_ips: true
+  shadowrocket/microsoft:
+    min_lines: 30
+    max_lines: 5000
+    require_domains: true
+    forbid_ips: true
+  shadowrocket/stream_non_ip:
+    min_lines: 100
+    max_lines: 10000
+    require_domains: true
+    forbid_ips: true

@@ -35,7 +35,7 @@ groups:
       - "@PROXY"
       - "@FALLBACK"
       - "@AUTO"
-      - DIRECT
+      - "@MANUAL"
     include_nodes: true
   - key: AI
     type: select
@@ -60,7 +60,6 @@ groups:
       - "@FALLBACK"
       - "@AUTO"
       - "@MANUAL"
-      - DIRECT
     include_nodes: true
   - key: Apple
     type: select
@@ -93,7 +92,6 @@ groups:
       - "@FALLBACK"
       - "@AUTO"
       - "@MANUAL"
-      - DIRECT
     include_nodes: true
   - key: Download
     type: select
@@ -101,7 +99,7 @@ groups:
       - "@FALLBACK"
       - "@PROXY"
       - "@AUTO"
-      - DIRECT
+      - "@MANUAL"
     include_nodes: true
   - key: Final
     type: select

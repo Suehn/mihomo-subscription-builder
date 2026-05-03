@@ -21,6 +21,12 @@ SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_FIRST = [
     "Telegram",
     "Streaming",
 ]
+SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_MEMBER = [
+    "GitHub",
+    "Developer",
+    "Streaming",
+    "Download",
+]
 SHADOWROCKET_REQUIRED_RULE_FRAGMENTS = [
     "DOMAIN-SUFFIX,github.com",
     "DOMAIN-SUFFIX,objects.githubusercontent.com",
@@ -175,11 +181,63 @@ def validate_mihomo_config(config_path: Path, validation_path: Path) -> None:
         if proxies[0] == "DIRECT":
             raise ValueError(f"Proxy group defaults to DIRECT: {group_name}")
 
+    for key in validation.get("foreign_groups_no_direct_member", []):
+        group_name = GROUP_LABELS[str(key)]
+        group = groups.get(group_name)
+        if not group:
+            raise ValueError(f"Missing required proxy group: {group_name}")
+        proxies = group.get("proxies", [])
+        if not isinstance(proxies, list):
+            raise ValueError(f"Proxy group proxies must be a list: {group_name}")
+        if "DIRECT" in proxies:
+            raise ValueError(f"Proxy group must not include DIRECT: {group_name}")
+
     _validate_rule_groups(config)
     _validate_rule_providers(config)
 
 
-def validate_rule_audit(audit_path: Path) -> None:
+def _entry_key(entry: dict[str, object]) -> str:
+    return f"{entry.get('client', '')}/{entry.get('rule_id', '')}"
+
+
+def _validate_rule_audit_baseline(entries: list[dict[str, object]], baseline_path: Path) -> list[str]:
+    if not baseline_path.exists():
+        return []
+    payload = yaml.safe_load(baseline_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("rules"), dict):
+        raise TypeError(f"{baseline_path} must contain a rules mapping")
+
+    entries_by_key = {_entry_key(entry): entry for entry in entries}
+    errors: list[str] = []
+    for key, raw_rule in payload["rules"].items():
+        if not isinstance(raw_rule, dict):
+            raise TypeError(f"Rule audit baseline entry must be a mapping: {key}")
+        entry = entries_by_key.get(str(key))
+        if not entry:
+            errors.append(f"missing audited provider from baseline: {key}")
+            continue
+
+        line_count = int(entry.get("line_count", 0))
+        domain_count = int(entry.get("domain_count", 0))
+        ip_count = int(entry.get("ip_count", 0))
+        process_count = int(entry.get("process_count", 0))
+        min_lines = raw_rule.get("min_lines")
+        max_lines = raw_rule.get("max_lines")
+
+        if min_lines is not None and line_count < int(min_lines):
+            errors.append(f"rule provider below baseline min_lines: {key} has {line_count}, expected >= {min_lines}")
+        if max_lines is not None and line_count > int(max_lines):
+            errors.append(f"rule provider above baseline max_lines: {key} has {line_count}, expected <= {max_lines}")
+        if raw_rule.get("require_domains") and domain_count <= 0:
+            errors.append(f"rule provider has no domain rules: {key}")
+        if raw_rule.get("forbid_ips") and ip_count:
+            errors.append(f"rule provider unexpectedly contains IP rules: {key}")
+        if raw_rule.get("forbid_process") and process_count:
+            errors.append(f"rule provider unexpectedly contains process rules: {key}")
+    return errors
+
+
+def validate_rule_audit(audit_path: Path, baseline_path: Path | None = None) -> None:
     payload = yaml.safe_load(audit_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or not isinstance(payload.get("rules"), list):
         raise TypeError(f"{audit_path} must contain a rules list")
@@ -220,6 +278,9 @@ def validate_rule_audit(audit_path: Path) -> None:
             errors.append(f"direct IP provider contains domain rules: {client}/{rule_id}")
         if client == "mihomo" and rule_id.endswith("_direct_ip") and process_count:
             errors.append(f"direct IP provider contains process rules: {client}/{rule_id}")
+
+    if baseline_path is not None:
+        errors.extend(_validate_rule_audit_baseline(entries, baseline_path))
 
     if errors:
         raise ValueError("Rule audit failures:\n" + "\n".join(errors))
@@ -268,6 +329,14 @@ def validate_shadowrocket_config(config_path: Path, *, traffic_saver: bool = Tru
             raise ValueError(f"Missing required Shadowrocket proxy group: {group_name}")
         if members[0] == "DIRECT":
             raise ValueError(f"Shadowrocket proxy group defaults to DIRECT: {group_name}")
+
+    for key in SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_MEMBER:
+        group_name = GROUP_LABELS[key]
+        members = groups.get(group_name)
+        if not members:
+            raise ValueError(f"Missing required Shadowrocket proxy group: {group_name}")
+        if "DIRECT" in members:
+            raise ValueError(f"Shadowrocket proxy group must not include DIRECT: {group_name}")
 
     final_group_name = GROUP_LABELS["Final"]
     final_members = groups.get(final_group_name)

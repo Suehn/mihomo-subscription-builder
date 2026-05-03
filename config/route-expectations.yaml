@@ -2,6 +2,7 @@ domains:
   github.com: "💻 GitHub"
   objects.githubusercontent.com: "💻 GitHub"
   release-assets.githubusercontent.com: "💻 GitHub"
+  github-releases.githubusercontent.com: "💻 GitHub"
   chatgpt.com: "🤖 AI"
   claude.ai: "🤖 AI"
   gemini.google.com: "🤖 AI"
@@ -9,6 +10,14 @@ domains:
   google.com: "🔎 Google"
   youtube.com: "📺 流媒体"
   netflix.com: "📺 流媒体"
+  spotify.com: "📺 流媒体"
+  tiktok.com: "📺 流媒体"
+  telegram.org: "✈️ Telegram"
+  office.com: "🪟 Microsoft"
+  live.com: "🪟 Microsoft"
+  sharepoint.com: "🪟 Microsoft"
+  icloud.com: "🍎 Apple"
+  apple.com: "🍎 Apple"
   bilibili.com: DIRECT
   iqiyi.com: DIRECT
   v.qq.com: DIRECT
@@ -43,3 +52,14 @@ domains:
   marketplace.visualstudio.com: "🛠 Developer"
   download.visualstudio.microsoft.com: DIRECT
   download.jetbrains.com: "🛠 Developer"
+  repo.anaconda.com: "🛠 Developer"
+  conda.anaconda.org: "🛠 Developer"
+  download.pytorch.org: "🛠 Developer"
+  registry.yarnpkg.com: "🛠 Developer"
+  deno.land: "🛠 Developer"
+  jsr.io: "🛠 Developer"
+  repo.maven.apache.org: "🛠 Developer"
+  repo1.maven.org: "🛠 Developer"
+  plugins.gradle.org: "🛠 Developer"
+  services.gradle.org: "🛠 Developer"
+  developer.hashicorp.com: "🛠 Developer"

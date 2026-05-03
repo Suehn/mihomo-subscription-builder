@@ -19,6 +19,8 @@ rules:
   - DOMAIN-SUFFIX,githubassets.com,@GitHub
   - DOMAIN-SUFFIX,githubusercontent.com,@GitHub
   - DOMAIN-SUFFIX,objects.githubusercontent.com,@GitHub
+  - DOMAIN-SUFFIX,release-assets.githubusercontent.com,@GitHub
+  - DOMAIN-SUFFIX,github-releases.githubusercontent.com,@GitHub
   - DOMAIN-SUFFIX,ghcr.io,@GitHub
   - DOMAIN-SUFFIX,pkg-containers.githubusercontent.com,@GitHub
 

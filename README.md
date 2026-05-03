@@ -123,7 +123,10 @@ Mihomo and Shadowrocket share the same group names where possible:
 
 - `🚀 代理`: primary proxy selector, first group for easy client operation.
 - `💻 GitHub`, `🤖 AI`, `🔎 Google`, `🛠 Developer`, `✈️ Telegram`,
-  `📺 流媒体`: explicit foreign service groups.
+  `📺 流媒体`: explicit foreign service groups. GitHub, Developer, Streaming,
+  and Download intentionally do not include `DIRECT`, which avoids persistent
+  client-side selected-state accidentally turning them into long-term direct
+  groups.
 - `🍎 Apple`: defaults DIRECT because normal Apple system services, App Store,
   iCloud, push, and updates are commonly domestic-friendly. Apple Intelligence is
   routed to `🤖 AI` instead.
@@ -212,6 +215,8 @@ The rule source of truth is kept in reviewable templates:
   group defaults.
 - `config/route-expectations.yaml`: representative domain routing tests.
 - `rules/custom/developer_global.txt`: small local developer ecosystem list.
+- `config/rule-audit-baseline.yaml`: line-count and type baseline for critical
+  mirrored rule providers.
 - `build/rule-audit.json`: generated provider manifest with line counts,
   domain/IP/process counts, and sha256 hashes for drift checks.
 
@@ -235,6 +240,9 @@ push, then update the client profile from the published URL.
 - Rule-provider audit data from `build/rule-audit.json`, including empty-provider
   checks, non-IP provider IP leakage checks, and strict Mihomo split checks for
   domestic direct domain/IP providers.
+- Provider drift baseline from `config/rule-audit-baseline.yaml`, which catches
+  empty, unexpectedly tiny, unexpectedly huge, or type-mismatched critical rule
+  outputs before publishing.
 
 `python -m pytest` covers renderer behavior, local rule source handling,
 Traffic-Saver Shadowrocket group defaults, overlay insertion order, and route

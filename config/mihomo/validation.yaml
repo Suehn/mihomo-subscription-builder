@@ -12,6 +12,11 @@ foreign_groups_no_direct_first:
   - Streaming
   - Download
   - RuleUpdate
+foreign_groups_no_direct_member:
+  - GitHub
+  - Developer
+  - Streaming
+  - Download
 rule_order:
   - before: DOMAIN-SUFFIX,github.com
     after: RULE-SET,download_domainset
@@ -48,6 +53,8 @@ rule_order:
 required_rules:
   - DOMAIN-SUFFIX,github.com
   - DOMAIN-SUFFIX,objects.githubusercontent.com
+  - DOMAIN-SUFFIX,release-assets.githubusercontent.com
+  - DOMAIN-SUFFIX,github-releases.githubusercontent.com
   - DOMAIN-SUFFIX,chatgpt.com
   - DOMAIN-SUFFIX,claude.ai
   - RULE-SET,apple_intelligence

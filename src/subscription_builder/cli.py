@@ -102,7 +102,10 @@ def _validate(args: argparse.Namespace) -> int:
     validation_path = project_root / "config" / "mihomo" / "validation.yaml"
     validate_mihomo_config(mihomo_path, validation_path)
     validate_mihomo_config(android_mihomo_path, validation_path)
-    validate_rule_audit(project_root / "build" / "rule-audit.json")
+    validate_rule_audit(
+        project_root / "build" / "rule-audit.json",
+        project_root / "config" / "rule-audit-baseline.yaml",
+    )
 
     validate_shadowrocket_config(shadowrocket_path, traffic_saver=True)
     validate_shadowrocket_config(shadowrocket_strict_path, traffic_saver=False)
