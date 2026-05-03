@@ -28,6 +28,9 @@ through the private `UPSTREAM_SUB_URL` secret.
 
 ## Design Principles
 
+For the full current architecture, routing policy, multi-client tradeoffs, and
+validation guardrails, see [docs/design.md](docs/design.md).
+
 The project is designed around one primary objective:
 
 > Domestic traffic should be direct and unnoticeable first. On that foundation,
