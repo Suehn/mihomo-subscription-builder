@@ -3,6 +3,7 @@ from __future__ import annotations
 from subscription_builder.rules import (
     _convert_clash_classical_domain,
     _convert_clash_classical_ip,
+    _convert_clash_classical_non_ip,
     _convert_metacubex_domain_yaml_to_shadowrocket,
     _convert_metacubex_ip_yaml_to_shadowrocket,
 )
@@ -65,4 +66,18 @@ payload:
         "IP-CIDR,203.107.1.0/24",
         "IP-CIDR6,2400:3200::/32",
         "IP-ASN,132203",
+    ]
+
+
+def test_convert_clash_classical_non_ip_filters_ip_rules() -> None:
+    content = """
+payload:
+  - DOMAIN-SUFFIX,apple.com
+  - PROCESS-NAME,apsd
+  - IP-CIDR,17.0.0.0/8,no-resolve
+""".strip()
+
+    assert _convert_clash_classical_non_ip(content).splitlines() == [
+        "DOMAIN-SUFFIX,apple.com",
+        "PROCESS-NAME,apsd",
     ]

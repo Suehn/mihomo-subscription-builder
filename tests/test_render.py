@@ -206,6 +206,7 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     rules = config["rules"]
 
     cn_idx = rules.index("GEOSITE,cn,DIRECT")
+    proxy_node_direct_idx = rules.index("IP-CIDR,38.65.95.237/32,DIRECT,no-resolve")
     github_idx = rules.index("GEOSITE,github,💻 GitHub")
     github_release_idx = rules.index("DOMAIN-SUFFIX,release-assets.githubusercontent.com,💻 GitHub")
     github_releases_idx = rules.index("DOMAIN-SUFFIX,github-releases.githubusercontent.com,💻 GitHub")
@@ -216,6 +217,9 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     download_idx = rules.index("RULE-SET,download_domainset,⬇️ 下载")
     cn_ip_idx = rules.index("GEOIP,CN,DIRECT")
 
+    assert proxy_node_direct_idx < github_idx
+    assert proxy_node_direct_idx < download_idx
+    assert proxy_node_direct_idx < cn_ip_idx
     assert cn_idx < download_idx
     assert github_idx < download_idx
     assert github_release_idx < download_idx

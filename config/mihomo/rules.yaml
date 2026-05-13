@@ -2,6 +2,7 @@ rules:
   - GEOSITE,private,DIRECT
   - GEOIP,private,DIRECT,no-resolve
   - RULE-SET,lan_non_ip,DIRECT
+  - IP-CIDR,38.65.95.237/32,DIRECT,no-resolve
 
   - RULE-SET,baidu_direct_domain,DIRECT
   - RULE-SET,weibo_direct_domain,DIRECT

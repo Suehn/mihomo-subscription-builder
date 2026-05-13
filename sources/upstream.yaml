@@ -318,6 +318,7 @@ rules:
       path: rules/mihomo/apple_services.txt
       behavior: classical
       format: text
+      transform: clash_classical_non_ip
     shadowrocket:
       source_url: https://ruleset-mirror.skk.moe/List/non_ip/apple_services.conf
       path: rules/shadowrocket/apple_services.conf
