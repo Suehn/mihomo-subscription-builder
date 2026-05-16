@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+from ipaddress import ip_address
 from pathlib import Path
 import re
 import shutil
@@ -35,6 +36,7 @@ GROUP_LABELS = {
 LOGIC_RULE_TYPES = {"AND", "OR", "NOT"}
 SHADOWROCKET_UNSUPPORTED_RULE_TYPES = {*LOGIC_RULE_TYPES, "SUB-RULE"}
 RULE_SET_REF_RE = re.compile(r"RULE-SET,([A-Za-z0-9_.!@-]+)")
+HOST_LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 PUBLIC_PAGES_MARKER = ".generated-public-pages"
 
 
@@ -85,6 +87,38 @@ def _dedupe(items: Iterable[str]) -> list[str]:
         if item not in seen:
             seen.append(item)
     return seen
+
+
+def _is_exact_hostname(value: str) -> bool:
+    if len(value) > 253:
+        return False
+    return all(HOST_LABEL_RE.fullmatch(label) for label in value.split("."))
+
+
+def _proxy_server_direct_rules(nodes: Iterable[ProxyNode]) -> list[str]:
+    rules: list[str] = []
+    for node in nodes:
+        host = node.server.strip().removeprefix("[").removesuffix("]").rstrip(".").lower()
+        if not host:
+            continue
+        try:
+            address = ip_address(host)
+        except ValueError:
+            if not _is_exact_hostname(host):
+                continue
+            rules.append(f"DOMAIN,{host},DIRECT")
+            continue
+        if address.version == 4:
+            rules.append(f"IP-CIDR,{address}/32,DIRECT,no-resolve")
+        else:
+            rules.append(f"IP-CIDR6,{address}/128,DIRECT,no-resolve")
+    return _dedupe(rules)
+
+
+def _insert_proxy_server_direct_rules(rules: list[str], nodes: Iterable[ProxyNode]) -> list[str]:
+    rendered = [*rules]
+    _insert_after_rules(rendered, "RULE-SET,lan_non_ip,DIRECT", _proxy_server_direct_rules(nodes))
+    return rendered
 
 
 def _node_names_for_group(nodes: list[ProxyNode], include_nodes: object) -> list[str]:
@@ -305,7 +339,7 @@ def _build_shadowrocket_groups(project_root: Path, nodes: list[ProxyNode], *, tr
     return groups
 
 
-def _build_mihomo_rules(project_root: Path, config: dict[str, object], overlay_name: str) -> list[str]:
+def _build_mihomo_rules(project_root: Path, config: dict[str, object], overlay_name: str, nodes: list[ProxyNode]) -> list[str]:
     payload = _load_mihomo_template(project_root, "rules.yaml")
     if not isinstance(payload, dict):
         raise TypeError("config/mihomo/rules.yaml must contain a mapping")
@@ -317,16 +351,22 @@ def _build_mihomo_rules(project_root: Path, config: dict[str, object], overlay_n
         if not isinstance(overlay, dict):
             raise TypeError(f"config/mihomo/overlays/{overlay_name}.yaml must contain a mapping")
         rules = [*_apply_overlay(config, rules, overlay), *rules]
+    rules = _insert_proxy_server_direct_rules(rules, nodes)
     return [_resolve_rule(rule) for rule in rules]
 
 
-def _build_shadowrocket_rules(project_root: Path, public_base_url: str, shadow_rules: dict[str, BuiltRule]) -> list[str]:
+def _build_shadowrocket_rules(
+    project_root: Path,
+    public_base_url: str,
+    shadow_rules: dict[str, BuiltRule],
+    nodes: list[ProxyNode],
+) -> list[str]:
     payload = _load_mihomo_template(project_root, "rules.yaml")
     if not isinstance(payload, dict):
         raise TypeError("config/mihomo/rules.yaml must contain a mapping")
 
     rendered: list[str] = []
-    for raw_rule in payload.get("rules", []):
+    for raw_rule in _insert_proxy_server_direct_rules([str(item) for item in payload.get("rules", [])], nodes):
         rule = str(raw_rule)
         parts = rule.split(",")
         rule_type = parts[0]
@@ -408,7 +448,7 @@ def render_mihomo(
     config = deepcopy(base_config)
     config["proxies"] = [node.to_mihomo_proxy() for node in nodes]
     config["proxy-groups"] = _build_mihomo_groups(project_root, nodes)
-    config["rules"] = _build_mihomo_rules(project_root, config, overlay_name)
+    config["rules"] = _build_mihomo_rules(project_root, config, overlay_name, nodes)
     all_providers = _build_rule_providers(mihomo_rules, public_base_url)
     referenced_provider_ids = _referenced_rule_provider_ids(config["rules"])
     config["rule-providers"] = {
@@ -445,7 +485,7 @@ def render_shadowrocket(
         "fallback_subscription_url": _provider_url(private_base_url, "shadowrocket-subscription.txt"),
         "proxy_lines": [node.to_shadowrocket_proxy_line() for node in shadow_nodes],
         "groups": _build_shadowrocket_groups(project_root, shadow_nodes, traffic_saver=traffic_saver),
-        "rules": _build_shadowrocket_rules(project_root, public_base_url, shadow_rules),
+        "rules": _build_shadowrocket_rules(project_root, public_base_url, shadow_rules, shadow_nodes),
     }
     rendered = template.render(**context)
     (output_root / output_name).write_text(rendered + "\n", encoding="utf-8")

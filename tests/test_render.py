@@ -213,8 +213,10 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     config = _render_config(tmp_path)
     rules = config["rules"]
 
+    lan_idx = rules.index("RULE-SET,lan_non_ip,DIRECT")
     cn_idx = rules.index("GEOSITE,cn,DIRECT")
-    proxy_node_direct_idx = rules.index("IP-CIDR,38.65.95.237/32,DIRECT,no-resolve")
+    proxy_node_direct_idx = rules.index("DOMAIN,proxy.example.test,DIRECT")
+    first_domestic_idx = rules.index("RULE-SET,baidu_direct_domain,DIRECT")
     github_idx = rules.index("GEOSITE,github,💻 GitHub")
     github_release_idx = rules.index("DOMAIN-SUFFIX,release-assets.githubusercontent.com,💻 GitHub")
     github_releases_idx = rules.index("DOMAIN-SUFFIX,github-releases.githubusercontent.com,💻 GitHub")
@@ -225,9 +227,11 @@ def test_mihomo_rules_route_specific_foreign_services_before_download_and_cn_ip(
     download_idx = rules.index("RULE-SET,download_domainset,⬇️ 下载")
     cn_ip_idx = rules.index("GEOIP,CN,DIRECT")
 
+    assert lan_idx < proxy_node_direct_idx < first_domestic_idx
     assert proxy_node_direct_idx < github_idx
     assert proxy_node_direct_idx < download_idx
     assert proxy_node_direct_idx < cn_ip_idx
+    assert "IP-CIDR,38.65.95.237/32,DIRECT,no-resolve" not in rules
     assert cn_idx < download_idx
     assert github_idx < download_idx
     assert github_release_idx < download_idx
@@ -426,6 +430,7 @@ def test_manual_only_nodes_are_visible_in_proxy_but_excluded_from_automatic_grou
     )
     config = yaml.safe_load((tmp_path / "mihomo-full.yaml").read_text(encoding="utf-8"))
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
+    rules = config["rules"]
 
     assert [proxy["name"] for proxy in config["proxies"]] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
     assert groups["🚀 代理"][:4] == ["🔁 故障转移", "⚡ 自动选择", "🧭 手动选择", "DIRECT"]
@@ -438,12 +443,22 @@ def test_manual_only_nodes_are_visible_in_proxy_but_excluded_from_automatic_grou
     assert "Pin-Che: nodes=2, policy=manual_only, traffic=0.00B / 4.88TB, expires=2027-05-16" in (
         tmp_path / "mihomo-full.yaml"
     ).read_text(encoding="utf-8")
+    assert "DOMAIN,proxy.example.test,DIRECT" in rules
+    assert "IP-CIDR,104.18.82.177/32,DIRECT,no-resolve" in rules
+    assert "IP-CIDR,23.94.37.72/32,DIRECT,no-resolve" in rules
+    assert "DOMAIN,edge.example.test,DIRECT" not in rules
+    assert "DOMAIN,zhuijumi.tv,DIRECT" not in rules
 
     shadow_text = _render_shadowrocket(tmp_path, nodes=[primary_node, manual_node, hysteria_node])
+    shadow_lines = shadow_text.splitlines()
     assert "Pin-Che · pinche-cdn=vless" in shadow_text
     assert "Pin-Che · pinche-hy2" not in shadow_text
     assert "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a,Pin-Che · pinche-cdn" in shadow_text
     assert "🤖 AI = select,node-a,🔁 故障转移,⚡ 自动选择,🧭 手动选择" in shadow_text
+    assert "DOMAIN,proxy.example.test,DIRECT" in shadow_lines
+    assert "IP-CIDR,104.18.82.177/32,DIRECT" in shadow_lines
+    assert "DOMAIN,edge.example.test,DIRECT" not in shadow_lines
+    assert "DOMAIN,zhuijumi.tv,DIRECT" not in shadow_lines
 
 
 def test_shadowrocket_includes_new_sukkaw_layers_and_passes_policy_validation(tmp_path: Path) -> None:

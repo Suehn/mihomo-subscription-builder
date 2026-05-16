@@ -154,6 +154,12 @@ are appended after the default entries in `🚀 代理` and excluded from
 metadata are written to `dist/node-sources.json` and also emitted as comments
 near the top of generated configs.
 
+Generated private configs also prepend exact DIRECT rules for each proxy
+server entry. IP nodes are rendered as single-address `IP-CIDR` / `IP-CIDR6`
+rules, and domain nodes are rendered as exact `DOMAIN` rules. The generator
+does not derive DIRECT rules from SNI, servername, or WebSocket Host fields, so
+camouflage domains and broad CDN suffixes are not accidentally bypassed.
+
 This split is deliberate. Desktop should protect unknown foreign traffic more
 aggressively. iOS should protect domestic traffic and cellular data more
 aggressively, while still proxying explicitly known foreign services.
@@ -336,7 +342,8 @@ Create the required repository secret:
 - `UPSTREAM_SUB_URL`
 - `PINCHE_SUB_URL`: optional secondary subscription. When present, its nodes are
   included in Mihomo as manual-only `Pin-Che` nodes and excluded from default
-  routing groups.
+  routing groups. Its node `server` entries are also covered by exact
+  self-DIRECT rules in the private generated configs.
 
 To enable private full-subscription delivery without breaking URL-based updates,
 also create these repository secrets:
