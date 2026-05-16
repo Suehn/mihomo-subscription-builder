@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 import time
@@ -9,16 +9,59 @@ from typing import Iterable
 import urllib.error
 import urllib.request
 
+import yaml
+
 from .models import ProxyNode
 
 
+@dataclass(slots=True)
+class FetchedSubscription:
+    text: str
+    userinfo: dict[str, int]
+
+
+@dataclass(slots=True)
+class NodeSourceResult:
+    source_id: str
+    label: str
+    group_policy: str
+    nodes: list[ProxyNode]
+    userinfo: dict[str, int]
+    metadata: dict[str, object]
+
+
+def _parse_subscription_userinfo(value: str | None) -> dict[str, int]:
+    if not value:
+        return {}
+    parsed: dict[str, int] = {}
+    for part in value.split(";"):
+        if "=" not in part:
+            continue
+        key, raw_value = part.split("=", 1)
+        key = key.strip()
+        raw_value = raw_value.strip()
+        if key in {"upload", "download", "total", "expire"}:
+            try:
+                parsed[key] = int(raw_value)
+            except ValueError:
+                continue
+    return parsed
+
+
 def fetch_url_text(url: str, user_agent: str) -> str:
+    return fetch_subscription(url, user_agent).text
+
+
+def fetch_subscription(url: str, user_agent: str) -> FetchedSubscription:
     request = urllib.request.Request(url, headers={"User-Agent": user_agent})
     last_error: Exception | None = None
     for attempt in range(3):
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                return response.read().decode("utf-8", errors="replace")
+                return FetchedSubscription(
+                    text=response.read().decode("utf-8", errors="replace"),
+                    userinfo=_parse_subscription_userinfo(response.headers.get("subscription-userinfo")),
+                )
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             last_error = exc
             if attempt == 2:
@@ -43,19 +86,75 @@ def split_links(payload: str) -> list[str]:
     return [line for line in lines if line and "://" in line]
 
 
-def fetch_and_parse_nodes(url: str, user_agent: str) -> list[ProxyNode]:
-    raw_text = fetch_url_text(url, user_agent)
-    payload = decode_subscription_payload(raw_text)
+def _is_loopback_metadata_proxy(payload: dict[str, object]) -> bool:
+    server = str(payload.get("server", ""))
+    return server in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+
+
+def _parse_nodes_payload(payload: str) -> list[ProxyNode]:
     links = split_links(payload)
-    nodes: list[ProxyNode] = []
-    for link in links:
-        try:
-            nodes.append(ProxyNode.from_uri(link))
-        except ValueError:
+    if links:
+        nodes: list[ProxyNode] = []
+        for link in links:
+            try:
+                nodes.append(ProxyNode.from_uri(link))
+            except ValueError:
+                continue
+        return nodes
+
+    try:
+        decoded = yaml.safe_load(payload)
+    except yaml.YAMLError:
+        return []
+    if not isinstance(decoded, dict) or not isinstance(decoded.get("proxies"), list):
+        return []
+
+    nodes = []
+    for item in decoded["proxies"]:
+        if not isinstance(item, dict) or _is_loopback_metadata_proxy(item):
             continue
+        try:
+            nodes.append(ProxyNode.from_mihomo_proxy(item))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return nodes
+
+
+def parse_nodes_text(raw_text: str) -> list[ProxyNode]:
+    payload = decode_subscription_payload(raw_text)
+    nodes = _parse_nodes_payload(payload)
     if not nodes:
         raise ValueError("No supported proxy nodes were parsed from the upstream subscription.")
     return nodes
+
+
+def fetch_and_parse_nodes(url: str, user_agent: str) -> list[ProxyNode]:
+    fetched = fetch_subscription(url, user_agent)
+    return parse_nodes_text(fetched.text)
+
+
+def fetch_and_parse_node_source(
+    *,
+    url: str,
+    user_agent: str,
+    source_id: str,
+    label: str,
+    group_policy: str,
+    metadata: dict[str, object] | None = None,
+) -> NodeSourceResult:
+    fetched = fetch_subscription(url, user_agent)
+    nodes = [
+        node.apply_source(source_id=source_id, source_label=label, group_policy=group_policy)
+        for node in parse_nodes_text(fetched.text)
+    ]
+    return NodeSourceResult(
+        source_id=source_id,
+        label=label,
+        group_policy=group_policy,
+        nodes=nodes,
+        userinfo=fetched.userinfo,
+        metadata=dict(metadata or {}),
+    )
 
 
 def read_nodes_json(input_path: Path) -> list[ProxyNode]:
@@ -80,7 +179,61 @@ def write_nodes_json(nodes: Iterable[ProxyNode], output_path: Path) -> None:
 
 def write_shadowrocket_uri_artifacts(nodes: Iterable[ProxyNode], output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    uri_text = "\n".join(node.to_uri() for node in nodes) + "\n"
+    supported_nodes = [node for node in nodes if node.supports_shadowrocket_config()]
+    uri_text = "\n".join(node.to_uri() for node in supported_nodes) + "\n"
     (output_dir / "shadowrocket-uris.txt").write_text(uri_text, encoding="utf-8")
     encoded = base64.b64encode(uri_text.encode("utf-8")).decode("ascii")
     (output_dir / "shadowrocket-subscription.txt").write_text(encoded + "\n", encoding="utf-8")
+
+
+def _node_sources_from_nodes(nodes: Iterable[ProxyNode]) -> dict[str, dict[str, object]]:
+    sources: dict[str, dict[str, object]] = {}
+    for node in nodes:
+        source = sources.setdefault(
+            node.source_id,
+            {
+                "id": node.source_id,
+                "label": node.source_label,
+                "group_policy": node.source_group_policy,
+                "node_count": 0,
+                "mihomo_node_count": 0,
+                "shadowrocket_node_count": 0,
+            },
+        )
+        source["node_count"] = int(source["node_count"]) + 1
+        source["mihomo_node_count"] = int(source["mihomo_node_count"]) + 1
+        if node.supports_shadowrocket_config():
+            source["shadowrocket_node_count"] = int(source["shadowrocket_node_count"]) + 1
+    return sources
+
+
+def write_node_source_audit(
+    *,
+    nodes: Iterable[ProxyNode],
+    source_results: Iterable[NodeSourceResult],
+    output_path: Path,
+) -> dict[str, object]:
+    sources = _node_sources_from_nodes(nodes)
+    for result in source_results:
+        source = sources.setdefault(
+            result.source_id,
+            {
+                "id": result.source_id,
+                "label": result.label,
+                "group_policy": result.group_policy,
+                "node_count": 0,
+                "mihomo_node_count": 0,
+                "shadowrocket_node_count": 0,
+            },
+        )
+        source["label"] = result.label
+        source["group_policy"] = result.group_policy
+        if result.userinfo:
+            source["subscription_userinfo"] = result.userinfo
+        if result.metadata:
+            source["metadata"] = result.metadata
+
+    payload = {"sources": list(sources.values())}
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return payload

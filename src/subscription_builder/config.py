@@ -1,10 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import os
 
 import yaml
+
+
+@dataclass(slots=True)
+class NodeSourceSpec:
+    source_id: str
+    label: str
+    env_var: str
+    required: bool = True
+    group_policy: str = "default"
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -28,6 +38,7 @@ class RuleSpec:
 @dataclass(slots=True)
 class ProjectConfig:
     subscription_env_var: str
+    node_sources: list[NodeSourceSpec]
     public_base_url_env: str
     private_base_url_env: str
     default_public_base_url: str
@@ -55,6 +66,28 @@ class ProjectConfig:
 
 def load_project_config(config_path: Path) -> ProjectConfig:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    subscription = raw["subscription"]
+    primary_source = NodeSourceSpec(
+        source_id=str(subscription.get("id", "primary")),
+        label=str(subscription.get("label", "Primary")),
+        env_var=subscription["env_var"],
+        required=True,
+        group_policy=str(subscription.get("group_policy", "default")),
+        metadata=dict(subscription.get("metadata", {})),
+    )
+    node_sources = [primary_source]
+    for item in subscription.get("extra_sources", []):
+        node_sources.append(
+            NodeSourceSpec(
+                source_id=str(item["id"]),
+                label=str(item.get("label", item["id"])),
+                env_var=str(item["env_var"]),
+                required=bool(item.get("required", False)),
+                group_policy=str(item.get("group_policy", "manual_only")),
+                metadata=dict(item.get("metadata", {})),
+            )
+        )
+
     rules: list[RuleSpec] = []
     for item in raw["rules"]:
         outputs: dict[str, RuleOutput] = {}
@@ -76,7 +109,8 @@ def load_project_config(config_path: Path) -> ProjectConfig:
             )
         )
     return ProjectConfig(
-        subscription_env_var=raw["subscription"]["env_var"],
+        subscription_env_var=subscription["env_var"],
+        node_sources=node_sources,
         public_base_url_env=raw["artifacts"]["public_base_url_env"],
         private_base_url_env=raw["artifacts"].get("private_base_url_env", "PRIVATE_BASE_URL"),
         default_public_base_url=raw["artifacts"]["default_public_base_url"],

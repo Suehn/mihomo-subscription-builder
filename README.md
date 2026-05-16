@@ -19,7 +19,10 @@ through the private `UPSTREAM_SUB_URL` secret.
 ## What It Does
 
 - Pulls the upstream subscription from `UPSTREAM_SUB_URL`
+- Optionally merges a secondary `PINCHE_SUB_URL` subscription as manual-only
+  nodes
 - Decodes Base64 subscriptions automatically
+- Parses both URI subscriptions and Mihomo/Clash YAML proxy lists
 - Parses `vless://`, `vmess://`, `trojan://`, and `ss://` links
 - Mirrors remote rule files into your own GitHub Pages artifact
 - Renders a Mihomo configuration with self-hosted `rule-providers`
@@ -138,6 +141,15 @@ Mihomo and Shadowrocket share the same group names where possible:
   candidates are handled by earlier domestic mirrors and Mihomo's
   `AND(download,GEOIP,CN)` split, not by making the whole download group DIRECT.
 - `🌐 兜底`: Mihomo defaults proxy-first; iOS defaults DIRECT first.
+- `🤖 AI`: uses the primary upstream nodes directly by default instead of the
+  main `🚀 代理` selector. Changing the main chain therefore does not
+  automatically move ChatGPT, OpenAI, Claude, or similar AI traffic.
+
+Optional secondary node sources such as `Pin-Che` are marked `manual_only`.
+Those nodes are rendered into Mihomo so they can be selected manually, but they
+are excluded from `🚀 代理`, `🔁 故障转移`, `⚡ 自动选择`, and `🤖 AI` defaults.
+Traffic quota and expiry metadata are written to `dist/node-sources.json` and
+also emitted as comments near the top of generated configs.
 
 This split is deliberate. Desktop should protect unknown foreign traffic more
 aggressively. iOS should protect domestic traffic and cellular data more
@@ -284,6 +296,7 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 
 export UPSTREAM_SUB_URL="https://example.com/sub/your-token"
+export PINCHE_SUB_URL="https://example.com/pcdy/your-token" # optional, manual-only
 export PUBLIC_BASE_URL="https://suehn.github.io/mihomo-subscription-builder"
 export PRIVATE_BASE_URL="https://private.example.com/mihomo-subscription-builder"
 
@@ -302,6 +315,7 @@ Generated files land in `dist/`:
 - `dist/shadowrocket-strict.conf`
 - `dist/shadowrocket-subscription.txt`
 - `dist/shadowrocket-uris.txt`
+- `dist/node-sources.json`
 - `dist/index.html`
 - `dist/rules/`
 
@@ -317,6 +331,9 @@ The public-safe GitHub Pages artifact lands in `public-dist/`:
 Create the required repository secret:
 
 - `UPSTREAM_SUB_URL`
+- `PINCHE_SUB_URL`: optional secondary subscription. When present, its nodes are
+  included in Mihomo as manual-only `Pin-Che` nodes and excluded from default
+  routing groups.
 
 To enable private full-subscription delivery without breaking URL-based updates,
 also create these repository secrets:

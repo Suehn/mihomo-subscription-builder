@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 import shutil
@@ -86,6 +87,80 @@ def _dedupe(items: Iterable[str]) -> list[str]:
     return seen
 
 
+def _node_names_for_group(nodes: list[ProxyNode], include_nodes: object) -> list[str]:
+    if not include_nodes:
+        return []
+    if include_nodes is True or include_nodes == "default":
+        return [node.name for node in nodes if node.source_group_policy != "manual_only"]
+    if include_nodes == "manual_only":
+        return [node.name for node in nodes if node.source_group_policy == "manual_only"]
+    if include_nodes == "all":
+        return [node.name for node in nodes]
+    raise ValueError(f"Unsupported include_nodes policy: {include_nodes}")
+
+
+def _format_bytes(value: object) -> str:
+    try:
+        size = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    unit_index = 0
+    while size >= 1024 and unit_index < len(units) - 1:
+        size /= 1024
+        unit_index += 1
+    if unit_index == 0:
+        return f"{int(size)}{units[unit_index]}"
+    return f"{size:.2f}{units[unit_index]}"
+
+
+def _format_expire(value: object) -> str:
+    try:
+        timestamp = int(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if timestamp <= 0:
+        return str(value)
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).date().isoformat()
+
+
+def _format_node_source_comments(node_source_audit: dict[str, object] | None) -> list[str]:
+    if not node_source_audit:
+        return []
+    comments = ["Node source summary:"]
+    for source in node_source_audit.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        label = source.get("label", source.get("id", "source"))
+        policy = source.get("group_policy", "default")
+        node_count = source.get("node_count", 0)
+        suffix = ""
+        userinfo = source.get("subscription_userinfo", {})
+        if isinstance(userinfo, dict) and userinfo:
+            upload = int(userinfo.get("upload", 0))
+            download = int(userinfo.get("download", 0))
+            total = userinfo.get("total")
+            used = upload + download
+            traffic = f"{_format_bytes(used)}"
+            if total is not None:
+                traffic = f"{traffic} / {_format_bytes(total)}"
+            expire = userinfo.get("expire")
+            suffix = f", traffic={traffic}"
+            if expire is not None:
+                suffix += f", expires={_format_expire(expire)}"
+        else:
+            metadata = source.get("metadata", {})
+            if isinstance(metadata, dict):
+                traffic = metadata.get("traffic_observed")
+                expires = metadata.get("expires_on")
+                if traffic:
+                    suffix += f", traffic={traffic}"
+                if expires:
+                    suffix += f", expires={expires}"
+        comments.append(f"- {label}: nodes={node_count}, policy={policy}{suffix}")
+    return comments
+
+
 def _append_unique_list(target: dict[str, object], path: list[str], values: list[str]) -> None:
     current: object = target
     for key in path[:-1]:
@@ -159,7 +234,7 @@ def _referenced_rule_provider_ids(rules: Iterable[str]) -> set[str]:
     return provider_ids
 
 
-def _build_mihomo_groups(project_root: Path, node_names: list[str]) -> list[dict[str, object]]:
+def _build_mihomo_groups(project_root: Path, nodes: list[ProxyNode]) -> list[dict[str, object]]:
     payload = _load_mihomo_template(project_root, "groups.yaml")
     if not isinstance(payload, dict):
         raise TypeError("config/mihomo/groups.yaml must contain a mapping")
@@ -172,8 +247,11 @@ def _build_mihomo_groups(project_root: Path, node_names: list[str]) -> list[dict
             "type": raw_group["type"],
         }
         members = [_resolve_policy(str(item)) for item in raw_group.get("members", [])]
-        if raw_group.get("include_nodes"):
-            members.extend(node_names)
+        group_node_names = _node_names_for_group(nodes, raw_group.get("include_nodes"))
+        if raw_group.get("nodes_first"):
+            members = [*group_node_names, *members]
+        else:
+            members.extend(group_node_names)
         if group["type"] in {"select", "fallback", "url-test"}:
             group["proxies"] = _dedupe(members)
         for field in ("url", "interval", "tolerance", "timeout", "lazy"):
@@ -196,9 +274,9 @@ def _shadowrocket_traffic_saver_members(group_name: str, members: list[str]) -> 
     return [*first_members, *remaining]
 
 
-def _build_shadowrocket_groups(project_root: Path, node_names: list[str], *, traffic_saver: bool) -> list[dict[str, object]]:
+def _build_shadowrocket_groups(project_root: Path, nodes: list[ProxyNode], *, traffic_saver: bool) -> list[dict[str, object]]:
     groups: list[dict[str, object]] = []
-    for group in _build_mihomo_groups(project_root, node_names):
+    for group in _build_mihomo_groups(project_root, nodes):
         if group["name"] == _g("RuleUpdate"):
             continue
         group_key = next((key for key, label in GROUP_LABELS.items() if label == group["name"]), "")
@@ -316,6 +394,7 @@ def render_mihomo(
     public_base_url: str,
     nodes: list[ProxyNode],
     manifest: dict[str, list[BuiltRule]],
+    node_source_audit: dict[str, object] | None = None,
     overlay_name: str = "macos",
     output_name: str = "mihomo-full.yaml",
 ) -> None:
@@ -323,13 +402,12 @@ def render_mihomo(
     template = env.get_template("mihomo.yaml.j2")
 
     mihomo_rules = manifest["mihomo"]
-    node_names = [node.name for node in nodes]
     base_config = _load_mihomo_template(project_root, "base.yaml")
     if not isinstance(base_config, dict):
         raise TypeError("config/mihomo/base.yaml must contain a mapping")
     config = deepcopy(base_config)
     config["proxies"] = [node.to_mihomo_proxy() for node in nodes]
-    config["proxy-groups"] = _build_mihomo_groups(project_root, node_names)
+    config["proxy-groups"] = _build_mihomo_groups(project_root, nodes)
     config["rules"] = _build_mihomo_rules(project_root, config, overlay_name)
     all_providers = _build_rule_providers(mihomo_rules, public_base_url)
     referenced_provider_ids = _referenced_rule_provider_ids(config["rules"])
@@ -339,7 +417,7 @@ def render_mihomo(
         if provider_id in referenced_provider_ids
     }
     body_yaml = yaml.safe_dump(config, allow_unicode=True, sort_keys=False, width=120)
-    rendered = template.render(body_yaml=body_yaml)
+    rendered = template.render(body_yaml=body_yaml, node_source_comments=_format_node_source_comments(node_source_audit))
     (output_root / output_name).write_text(rendered, encoding="utf-8")
 
 
@@ -351,6 +429,7 @@ def render_shadowrocket(
     private_base_url: str | None = None,
     nodes: list[ProxyNode],
     manifest: dict[str, list[BuiltRule]],
+    node_source_audit: dict[str, object] | None = None,
     output_name: str = "shadowrocket.conf",
     traffic_saver: bool = True,
 ) -> None:
@@ -358,13 +437,14 @@ def render_shadowrocket(
     template = env.get_template("shadowrocket.conf.j2")
 
     shadow_rules = _rule_lookup(manifest["shadowrocket"])
-    proxy_names = [node.name for node in nodes]
+    shadow_nodes = [node for node in nodes if node.supports_shadowrocket_config()]
     private_base_url = private_base_url or public_base_url
     context = {
         "generated_comment": "Generated by mihomo-subscription-builder. Edit templates instead of this file.",
+        "node_source_comments": _format_node_source_comments(node_source_audit),
         "fallback_subscription_url": _provider_url(private_base_url, "shadowrocket-subscription.txt"),
-        "proxy_lines": [node.to_shadowrocket_proxy_line() for node in nodes],
-        "groups": _build_shadowrocket_groups(project_root, proxy_names, traffic_saver=traffic_saver),
+        "proxy_lines": [node.to_shadowrocket_proxy_line() for node in shadow_nodes],
+        "groups": _build_shadowrocket_groups(project_root, shadow_nodes, traffic_saver=traffic_saver),
         "rules": _build_shadowrocket_rules(project_root, public_base_url, shadow_rules),
     }
     rendered = template.render(**context)

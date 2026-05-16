@@ -100,7 +100,13 @@ def _render_config(tmp_path: Path) -> dict[str, object]:
     return yaml.safe_load((tmp_path / "mihomo-full.yaml").read_text(encoding="utf-8"))
 
 
-def _render_shadowrocket(tmp_path: Path, *, output_name: str = "shadowrocket.conf", traffic_saver: bool = True) -> str:
+def _render_shadowrocket(
+    tmp_path: Path,
+    *,
+    output_name: str = "shadowrocket.conf",
+    traffic_saver: bool = True,
+    nodes: list[ProxyNode] | None = None,
+) -> str:
     rules = [_rule(rule_id) for rule_id in RULE_IDS]
     for rule in rules:
         rule.client = "shadowrocket"
@@ -152,7 +158,7 @@ def _render_shadowrocket(tmp_path: Path, *, output_name: str = "shadowrocket.con
         output_root=tmp_path,
         public_base_url="https://example.test/sub",
         private_base_url="https://private.example.test/sub",
-        nodes=[
+        nodes=nodes or [
             ProxyNode(
                 name="node-a",
                 type="vless",
@@ -191,6 +197,8 @@ def test_mihomo_download_and_fallback_groups_prefer_proxy(tmp_path: Path) -> Non
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
 
     assert config["proxy-groups"][0]["name"] == "🚀 代理"
+    assert groups["🤖 AI"][0] == "node-a"
+    assert "🚀 代理" not in groups["🤖 AI"]
     assert groups["🪟 Microsoft"][:3] == ["🚀 代理", "🔁 故障转移", "DIRECT"]
     assert groups["🔎 Google"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
     assert groups["💻 GitHub"][:4] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择", "🧭 手动选择"]
@@ -351,7 +359,7 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     assert group_lines[0] == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
     assert next(line for line in lines if line.startswith("🚀 代理 = ")) == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
     assert "🔁 故障转移 = fallback,node-a,url=https://www.gstatic.com/generate_204,interval=300" in lines
-    assert "🤖 AI = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
+    assert "🤖 AI = select,node-a" in lines
     assert "🔎 Google = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
     assert "💻 GitHub = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
     assert "🛠 Developer = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
@@ -363,6 +371,77 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     strict_lines = strict_text.splitlines()
     assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,🧭 手动选择,node-a" in strict_lines
     assert "🌐 兜底 = select,🚀 代理,🔁 故障转移,⚡ 自动选择,DIRECT,node-a" in strict_lines
+
+
+def test_manual_only_nodes_are_visible_but_excluded_from_default_groups(tmp_path: Path) -> None:
+    primary_node = ProxyNode(
+        name="node-a",
+        type="vless",
+        server="proxy.example.test",
+        port=443,
+        uuid="00000000-0000-4000-8000-000000000001",
+        tls=True,
+    )
+    manual_node = ProxyNode(
+        name="pinche-cdn",
+        type="vless",
+        server="104.18.82.177",
+        port=443,
+        uuid="00000000-0000-4000-8000-000000000002",
+        tls=True,
+        network="ws",
+        ws_path="/pinche",
+        ws_host="edge.example.test",
+    ).apply_source(source_id="pinche", source_label="Pin-Che", group_policy="manual_only")
+    hysteria_node = ProxyNode(
+        name="pinche-hy2",
+        type="hysteria2",
+        server="23.94.37.72",
+        port=49394,
+        password="secret",
+        servername="zhuijumi.tv",
+        skip_cert_verify=True,
+        up=100,
+        down=100,
+    ).apply_source(source_id="pinche", source_label="Pin-Che", group_policy="manual_only")
+
+    render_mihomo(
+        project_root=Path.cwd(),
+        output_root=tmp_path,
+        public_base_url="https://example.test/sub",
+        nodes=[primary_node, manual_node, hysteria_node],
+        manifest={"mihomo": [_rule(rule_id) for rule_id in RULE_IDS], "shadowrocket": []},
+        node_source_audit={
+            "sources": [
+                {"id": "primary", "label": "Primary", "group_policy": "default", "node_count": 1},
+                {
+                    "id": "pinche",
+                    "label": "Pin-Che",
+                    "group_policy": "manual_only",
+                    "node_count": 2,
+                    "metadata": {"traffic_observed": "0.00B / 4.88TB", "expires_on": "2027-05-16"},
+                },
+            ]
+        },
+    )
+    config = yaml.safe_load((tmp_path / "mihomo-full.yaml").read_text(encoding="utf-8"))
+    groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
+
+    assert [proxy["name"] for proxy in config["proxies"]] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
+    assert "Pin-Che · pinche-cdn" not in groups["🚀 代理"]
+    assert "Pin-Che · pinche-hy2" not in groups["🔁 故障转移"]
+    assert "Pin-Che · pinche-cdn" not in groups["⚡ 自动选择"]
+    assert groups["🤖 AI"] == ["node-a"]
+    assert "Pin-Che · pinche-cdn" in groups["🧭 手动选择"]
+    assert "Pin-Che · pinche-hy2" in groups["🧭 手动选择"]
+    assert "Pin-Che: nodes=2, policy=manual_only, traffic=0.00B / 4.88TB, expires=2027-05-16" in (
+        tmp_path / "mihomo-full.yaml"
+    ).read_text(encoding="utf-8")
+
+    shadow_text = _render_shadowrocket(tmp_path, nodes=[primary_node, manual_node, hysteria_node])
+    assert "Pin-Che · pinche-cdn=vless" in shadow_text
+    assert "Pin-Che · pinche-hy2" not in shadow_text
+    assert "🤖 AI = select,node-a" in shadow_text
 
 
 def test_shadowrocket_includes_new_sukkaw_layers_and_passes_policy_validation(tmp_path: Path) -> None:

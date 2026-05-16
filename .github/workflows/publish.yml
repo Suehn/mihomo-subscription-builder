@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       UPSTREAM_SUB_URL: ${{ secrets.UPSTREAM_SUB_URL }}
+      PINCHE_SUB_URL: ${{ secrets.PINCHE_SUB_URL }}
       PUBLIC_BASE_URL: https://suehn.github.io/mihomo-subscription-builder
       PRIVATE_BASE_URL: ${{ secrets.PRIVATE_BASE_URL }}
       PRIVATE_SSH_HOST: ${{ secrets.PRIVATE_SSH_HOST }}

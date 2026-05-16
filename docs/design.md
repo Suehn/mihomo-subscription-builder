@@ -31,7 +31,9 @@ P2 节点发布安全：规则公开，完整订阅走私有 URL
 
 ### 2.1 节点层
 
-`UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供。生成器解析 `vless://`、`vmess://`、`trojan://`、`ss://` 节点，并输出 Mihomo 和 Shadowrocket 可用的订阅文件。
+`UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供。生成器解析 `vless://`、`vmess://`、`trojan://`、`ss://` URI 订阅，也支持 Mihomo / Clash YAML 里的 `proxies` 列表，并输出 Mihomo 和 Shadowrocket 可用的订阅文件。
+
+`PINCHE_SUB_URL` 是可选的第二订阅源。它被标记为 `manual_only`：节点会进入 Mihomo 输出，方便在客户端手动选择，但不会进入默认 `🚀 代理`、`🔁 故障转移`、`⚡ 自动选择` 或 `🤖 AI` 候选池。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留，方便看到剩余流量和到期时间。
 
 ### 2.2 规则源层
 
@@ -188,6 +190,7 @@ Mihomo 端现在用逻辑规则拆 Download：
 Mihomo 端：
 
 ```text
+🤖 AI：默认直接列出主订阅源节点，不通过 🚀 代理
 🌐 兜底：代理优先
 ⬇️ 下载：代理优先
 GitHub / AI / Google / Developer / Telegram / Streaming：代理优先
@@ -196,6 +199,8 @@ GitHub / AI / Google / Developer / Telegram / Streaming：代理优先
 ```
 
 这个默认值的失败模式是可控的：少量未知国内域名可能先经历 CN IP 判断，国外未知流量不会直接落到 DIRECT。
+
+`AI` 分组刻意不把 `🚀 代理` 放在默认入口，而是直接列出主订阅源节点。这样即使主链路临时改到其他节点或后续手动选择 `Pin-Che`，ChatGPT、OpenAI、Claude 等 AI 流量仍保持在老节点池，除非明确进入 `🤖 AI` 分组调整。
 
 `GitHub`、`Developer`、`Streaming`、`Download` 这些关键国外组不包含 `DIRECT` 成员。这是为了避免客户端 `store-selected` 把一次临时手动选择持久化成长期 DIRECT，导致 GitHub、开发下载或国外大文件下载重新绕开代理。需要全局应急直连时，仍可以从 `🚀 代理` 或 `🌐 兜底` 这类更上层组操作。
 

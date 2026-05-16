@@ -1,6 +1,9 @@
 # {{ generated_comment }}
 # If the local VLESS/REALITY line below is not accepted by your Shadowrocket build,
 # import this URL as a node subscription first: {{ fallback_subscription_url }}
+{% for comment in node_source_comments -%}
+# {{ comment }}
+{% endfor %}
 
 [General]
 bypass-system = true

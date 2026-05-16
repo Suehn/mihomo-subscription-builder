@@ -22,7 +22,7 @@ groups:
     timeout: 3000
   - key: MANUAL
     type: select
-    include_nodes: true
+    include_nodes: all
   - key: RuleUpdate
     type: select
     members:
@@ -39,11 +39,7 @@ groups:
     include_nodes: true
   - key: AI
     type: select
-    members:
-      - "@PROXY"
-      - "@FALLBACK"
-      - "@AUTO"
-      - "@MANUAL"
+    nodes_first: true
     include_nodes: true
   - key: Google
     type: select

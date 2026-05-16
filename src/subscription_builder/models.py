@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 import base64
 import json
 import re
-from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.parse import parse_qs, quote, urlencode, unquote, urlparse
 
 
 def _clean_name(value: str) -> str:
@@ -43,6 +43,12 @@ class ProxyNode:
     http_path: str | None = None
     http_host: str | None = None
     alpn: list[str] = field(default_factory=list)
+    cipher: str | None = None
+    up: int | None = None
+    down: int | None = None
+    source_id: str = "primary"
+    source_label: str = "Primary"
+    source_group_policy: str = "default"
     raw_uri: str | None = None
 
     @classmethod
@@ -157,9 +163,79 @@ class ProxyNode:
             server=parsed.hostname or "",
             port=parsed.port or 8388,
             password=password,
+            cipher=method,
             network="tcp",
             raw_uri=uri,
         )
+
+    @classmethod
+    def from_mihomo_proxy(cls, payload: dict[str, object]) -> "ProxyNode":
+        node_type = str(payload.get("type", "")).lower()
+        if node_type == "vless":
+            ws_opts = payload.get("ws-opts", {})
+            ws_headers: dict[str, object] = {}
+            if isinstance(ws_opts, dict) and isinstance(ws_opts.get("headers"), dict):
+                ws_headers = ws_opts["headers"]
+            return cls(
+                name=_clean_name(str(payload.get("name", "vless"))),
+                type="vless",
+                server=str(payload["server"]),
+                port=int(payload.get("port", 443)),
+                uuid=str(payload.get("uuid", "")),
+                network=str(payload.get("network", "tcp") or "tcp"),
+                tls=bool(payload.get("tls", False)),
+                servername=str(payload.get("servername") or payload.get("sni") or "") or None,
+                client_fingerprint=str(payload.get("client-fingerprint") or payload.get("client_fingerprint") or "") or None,
+                skip_cert_verify=bool(payload.get("skip-cert-verify", False)),
+                flow=str(payload.get("flow") or "") or None,
+                ws_path=str(ws_opts.get("path") or "/") if isinstance(ws_opts, dict) else None,
+                ws_host=str(ws_headers.get("Host") or ws_headers.get("host") or "") or None,
+                alpn=[str(item) for item in payload.get("alpn", [])] if isinstance(payload.get("alpn"), list) else [],
+            )
+        if node_type == "hysteria2":
+            return cls(
+                name=_clean_name(str(payload.get("name", "hysteria2"))),
+                type="hysteria2",
+                server=str(payload["server"]),
+                port=int(payload.get("port", 443)),
+                password=str(payload.get("password", "")),
+                servername=str(payload.get("sni") or payload.get("servername") or "") or None,
+                skip_cert_verify=bool(payload.get("skip-cert-verify", False)),
+                alpn=[str(item) for item in payload.get("alpn", [])] if isinstance(payload.get("alpn"), list) else [],
+                up=int(payload["up"]) if payload.get("up") is not None else None,
+                down=int(payload["down"]) if payload.get("down") is not None else None,
+            )
+        if node_type == "trojan":
+            return cls(
+                name=_clean_name(str(payload.get("name", "trojan"))),
+                type="trojan",
+                server=str(payload["server"]),
+                port=int(payload.get("port", 443)),
+                password=str(payload.get("password", "")),
+                network=str(payload.get("network", "tcp") or "tcp"),
+                tls=bool(payload.get("tls", True)),
+                servername=str(payload.get("sni") or payload.get("servername") or "") or None,
+                skip_cert_verify=bool(payload.get("skip-cert-verify", False)),
+            )
+        if node_type == "ss":
+            return cls(
+                name=_clean_name(str(payload.get("name", "ss"))),
+                type="ss",
+                server=str(payload["server"]),
+                port=int(payload.get("port", 8388)),
+                password=str(payload.get("password", "")),
+                cipher=str(payload.get("cipher") or "aes-256-gcm"),
+                network="tcp",
+            )
+        raise ValueError(f"Unsupported Mihomo proxy type: {node_type}")
+
+    def apply_source(self, *, source_id: str, source_label: str, group_policy: str) -> "ProxyNode":
+        self.source_id = source_id
+        self.source_label = source_label
+        self.source_group_policy = group_policy
+        if source_id != "primary" and not self.name.startswith(f"{source_label} · "):
+            self.name = f"{source_label} · {self.name}"
+        return self
 
     def to_mihomo_proxy(self) -> dict[str, object]:
         data: dict[str, object] = {
@@ -171,13 +247,15 @@ class ProxyNode:
         }
         if self.type in {"vless", "vmess"} and self.uuid:
             data["uuid"] = self.uuid
-        if self.type in {"trojan", "ss"} and self.password:
+        if self.type in {"trojan", "ss", "hysteria2"} and self.password:
             data["password"] = self.password
         if self.type == "ss":
-            data["cipher"] = "auto"
+            data["cipher"] = self.cipher or "auto"
         if self.tls:
             data["tls"] = True
-        if self.servername:
+        if self.servername and self.type == "hysteria2":
+            data["sni"] = self.servername
+        elif self.servername:
             data["servername"] = self.servername
         if self.client_fingerprint:
             data["client-fingerprint"] = self.client_fingerprint
@@ -191,6 +269,11 @@ class ProxyNode:
             data["tfo"] = True
         if self.alpn:
             data["alpn"] = self.alpn
+        if self.type == "hysteria2":
+            if self.up is not None:
+                data["up"] = self.up
+            if self.down is not None:
+                data["down"] = self.down
         if self.reality_public_key:
             data["reality-opts"] = {"public-key": self.reality_public_key}
             if self.reality_short_id:
@@ -215,7 +298,43 @@ class ProxyNode:
     def to_uri(self) -> str:
         if self.raw_uri:
             return self.raw_uri
+        if self.type == "vless" and self.uuid:
+            query: dict[str, str] = {}
+            if self.tls:
+                query["security"] = "tls"
+            if self.network:
+                query["type"] = self.network
+            if self.servername:
+                query["sni"] = self.servername
+            if self.client_fingerprint:
+                query["fp"] = self.client_fingerprint
+            if self.ws_host:
+                query["host"] = self.ws_host
+            if self.ws_path:
+                query["path"] = self.ws_path
+            return (
+                f"vless://{quote(self.uuid, safe='')}@{self.server}:{self.port}"
+                f"?{urlencode(query)}#{quote(self.name)}"
+            )
+        if self.type == "hysteria2" and self.password:
+            query = {}
+            if self.servername:
+                query["sni"] = self.servername
+            if self.skip_cert_verify:
+                query["insecure"] = "1"
+            return (
+                f"hysteria2://{quote(self.password, safe='')}@{self.server}:{self.port}"
+                f"?{urlencode(query)}#{quote(self.name)}"
+            )
+        if self.type == "ss" and self.password:
+            userinfo = base64.urlsafe_b64encode(
+                f"{self.cipher or 'aes-256-gcm'}:{self.password}".encode("utf-8")
+            ).decode("ascii").rstrip("=")
+            return f"ss://{userinfo}@{self.server}:{self.port}#{quote(self.name)}"
         raise ValueError(f"Raw URI is unavailable for {self.name}")
+
+    def supports_shadowrocket_config(self) -> bool:
+        return self.type in {"vless", "trojan", "ss", "vmess"}
 
     def to_shadowrocket_proxy_line(self) -> str:
         if self.type == "vless":
@@ -262,7 +381,7 @@ class ProxyNode:
                 parts.append("allowInsecure=1")
             return ",".join(parts)
         if self.type == "ss":
-            return f"{self.name}=ss,{self.server},{self.port},password={self.password},method=aes-256-gcm"
+            return f"{self.name}=ss,{self.server},{self.port},password={self.password},method={self.cipher or 'aes-256-gcm'}"
         if self.type == "vmess":
             parts = [
                 f"{self.name}=vmess,{self.server},{self.port}",
@@ -285,4 +404,3 @@ class ProxyNode:
                 parts.append("obfs=none")
             return ",".join(parts)
         raise ValueError(f"Shadowrocket local line is unsupported for proxy type: {self.type}")
-

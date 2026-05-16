@@ -2,11 +2,20 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import os
 import subprocess
 import sys
 
 from .config import ProjectConfig, load_project_config
-from .nodes import fetch_and_parse_nodes, read_nodes_json, write_nodes_json, write_shadowrocket_uri_artifacts
+from .models import ProxyNode
+from .nodes import (
+    NodeSourceResult,
+    fetch_and_parse_node_source,
+    read_nodes_json,
+    write_node_source_audit,
+    write_nodes_json,
+    write_shadowrocket_uri_artifacts,
+)
 from .render import prepare_public_pages, render_index, render_mihomo, render_shadowrocket
 from .route_expectations import validate_route_expectations
 from .runtime_smoke import run_mihomo_runtime_smoke
@@ -31,17 +40,53 @@ def _load_context(args: argparse.Namespace) -> tuple[Path, ProjectConfig, Path, 
     return project_root, load_project_config(config_path), output_root, build_root
 
 
+def _fetch_configured_nodes(args: argparse.Namespace, config: ProjectConfig) -> tuple[list[ProxyNode], list[NodeSourceResult]]:
+    nodes: list[ProxyNode] = []
+    source_results: list[NodeSourceResult] = []
+    primary_source_id = config.node_sources[0].source_id
+    for source in config.node_sources:
+        explicit_url = args.upstream_url if source.source_id == primary_source_id else None
+        source_url = explicit_url or os.environ.get(source.env_var, "")
+        if not source_url:
+            if source.required:
+                raise ValueError(
+                    f"Missing upstream subscription URL. Set {source.env_var} or pass --upstream-url."
+                )
+            continue
+        result = fetch_and_parse_node_source(
+            url=source_url,
+            user_agent=config.user_agent,
+            source_id=source.source_id,
+            label=source.label,
+            group_policy=source.group_policy,
+            metadata=source.metadata,
+        )
+        nodes.extend(result.nodes)
+        source_results.append(result)
+    return nodes, source_results
+
+
 def _build_all(args: argparse.Namespace) -> int:
     project_root, config, output_root, build_root = _load_context(args)
     public_base_url = config.resolve_public_base_url(args.public_base_url)
     private_base_url = config.resolve_private_base_url(args.private_base_url, public_base_url=public_base_url)
     if args.use_cached_nodes:
         nodes = read_nodes_json(build_root / "nodes.json")
+        source_results: list[NodeSourceResult] = []
     else:
-        upstream_url = config.resolve_upstream_url(args.upstream_url)
-        nodes = fetch_and_parse_nodes(upstream_url, config.user_agent)
+        nodes, source_results = _fetch_configured_nodes(args, config)
         write_nodes_json(nodes, build_root / "nodes.json")
     write_shadowrocket_uri_artifacts(nodes, output_root)
+    source_audit = write_node_source_audit(
+        nodes=nodes,
+        source_results=source_results,
+        output_path=build_root / "node-sources.json",
+    )
+    write_node_source_audit(
+        nodes=nodes,
+        source_results=source_results,
+        output_path=output_root / "node-sources.json",
+    )
     manifest = build_rules(config, output_root, project_root=project_root)
     write_rule_manifest(manifest, build_root / "rule-manifest.json")
     write_rule_audit(manifest, output_root, build_root / "rule-audit.json")
@@ -51,6 +96,7 @@ def _build_all(args: argparse.Namespace) -> int:
         public_base_url=public_base_url,
         nodes=nodes,
         manifest=manifest,
+        node_source_audit=source_audit,
         overlay_name="macos",
         output_name="mihomo-full.yaml",
     )
@@ -60,6 +106,7 @@ def _build_all(args: argparse.Namespace) -> int:
         public_base_url=public_base_url,
         nodes=nodes,
         manifest=manifest,
+        node_source_audit=source_audit,
         overlay_name="android",
         output_name="mihomo-android.yaml",
     )
@@ -70,6 +117,7 @@ def _build_all(args: argparse.Namespace) -> int:
         private_base_url=private_base_url,
         nodes=nodes,
         manifest=manifest,
+        node_source_audit=source_audit,
         output_name="shadowrocket.conf",
         traffic_saver=True,
     )
@@ -80,6 +128,7 @@ def _build_all(args: argparse.Namespace) -> int:
         private_base_url=private_base_url,
         nodes=nodes,
         manifest=manifest,
+        node_source_audit=source_audit,
         output_name="shadowrocket-strict.conf",
         traffic_saver=False,
     )
