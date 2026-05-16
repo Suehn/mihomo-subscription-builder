@@ -33,7 +33,7 @@ P2 节点发布安全：规则公开，完整订阅走私有 URL
 
 `UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供。生成器解析 `vless://`、`vmess://`、`trojan://`、`ss://` URI 订阅，也支持 Mihomo / Clash YAML 里的 `proxies` 列表，并输出 Mihomo 和 Shadowrocket 可用的订阅文件。
 
-`PINCHE_SUB_URL` 是可选的第二订阅源。它被标记为 `manual_only`：节点会进入 Mihomo 输出，方便在客户端手动选择，但不会进入默认 `🚀 代理`、`🔁 故障转移`、`⚡ 自动选择` 或 `🤖 AI` 候选池。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留，方便看到剩余流量和到期时间。
+`PINCHE_SUB_URL` 是可选的第二订阅源。它被标记为 `manual_only`：节点会进入 Mihomo 输出，并追加显示在 `🚀 代理` 与 `🧭 手动选择` 里，方便在客户端手动选择；但不会进入 `🔁 故障转移`、`⚡ 自动选择` 或 `🤖 AI` 默认候选池。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留，方便看到剩余流量和到期时间。
 
 ### 2.2 规则源层
 

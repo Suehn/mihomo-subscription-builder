@@ -373,7 +373,7 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     assert "🌐 兜底 = select,🚀 代理,🔁 故障转移,⚡ 自动选择,DIRECT,node-a" in strict_lines
 
 
-def test_manual_only_nodes_are_visible_but_excluded_from_default_groups(tmp_path: Path) -> None:
+def test_manual_only_nodes_are_visible_in_proxy_but_excluded_from_automatic_groups(tmp_path: Path) -> None:
     primary_node = ProxyNode(
         name="node-a",
         type="vless",
@@ -428,7 +428,8 @@ def test_manual_only_nodes_are_visible_but_excluded_from_default_groups(tmp_path
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
 
     assert [proxy["name"] for proxy in config["proxies"]] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
-    assert "Pin-Che · pinche-cdn" not in groups["🚀 代理"]
+    assert groups["🚀 代理"][:4] == ["🔁 故障转移", "⚡ 自动选择", "🧭 手动选择", "DIRECT"]
+    assert groups["🚀 代理"][-2:] == ["Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
     assert "Pin-Che · pinche-hy2" not in groups["🔁 故障转移"]
     assert "Pin-Che · pinche-cdn" not in groups["⚡ 自动选择"]
     assert groups["🤖 AI"] == ["node-a", "🔁 故障转移", "⚡ 自动选择", "🧭 手动选择"]
@@ -441,6 +442,7 @@ def test_manual_only_nodes_are_visible_but_excluded_from_default_groups(tmp_path
     shadow_text = _render_shadowrocket(tmp_path, nodes=[primary_node, manual_node, hysteria_node])
     assert "Pin-Che · pinche-cdn=vless" in shadow_text
     assert "Pin-Che · pinche-hy2" not in shadow_text
+    assert "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a,Pin-Che · pinche-cdn" in shadow_text
     assert "🤖 AI = select,node-a,🔁 故障转移,⚡ 自动选择,🧭 手动选择" in shadow_text
 
 

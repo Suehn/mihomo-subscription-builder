@@ -6,7 +6,7 @@ groups:
       - "@AUTO"
       - "@MANUAL"
       - DIRECT
-    include_nodes: true
+    include_nodes: all
   - key: FALLBACK
     type: fallback
     include_nodes: true

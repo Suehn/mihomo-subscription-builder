@@ -149,9 +149,10 @@ Mihomo and Shadowrocket share the same group names where possible:
 
 Optional secondary node sources such as `Pin-Che` are marked `manual_only`.
 Those nodes are rendered into Mihomo so they can be selected manually, but they
-are excluded from `🚀 代理`, `🔁 故障转移`, `⚡ 自动选择`, and `🤖 AI` defaults.
-Traffic quota and expiry metadata are written to `dist/node-sources.json` and
-also emitted as comments near the top of generated configs.
+are appended after the default entries in `🚀 代理` and excluded from
+`🔁 故障转移`, `⚡ 自动选择`, and `🤖 AI` defaults. Traffic quota and expiry
+metadata are written to `dist/node-sources.json` and also emitted as comments
+near the top of generated configs.
 
 This split is deliberate. Desktop should protect unknown foreign traffic more
 aggressively. iOS should protect domestic traffic and cellular data more
