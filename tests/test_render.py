@@ -197,7 +197,7 @@ def test_mihomo_download_and_fallback_groups_prefer_proxy(tmp_path: Path) -> Non
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
 
     assert config["proxy-groups"][0]["name"] == "🚀 代理"
-    assert groups["🤖 AI"][0] == "node-a"
+    assert groups["🤖 AI"][:4] == ["node-a", "🔁 故障转移", "⚡ 自动选择", "🧭 手动选择"]
     assert "🚀 代理" not in groups["🤖 AI"]
     assert groups["🪟 Microsoft"][:3] == ["🚀 代理", "🔁 故障转移", "DIRECT"]
     assert groups["🔎 Google"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
@@ -359,7 +359,7 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     assert group_lines[0] == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
     assert next(line for line in lines if line.startswith("🚀 代理 = ")) == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
     assert "🔁 故障转移 = fallback,node-a,url=https://www.gstatic.com/generate_204,interval=300" in lines
-    assert "🤖 AI = select,node-a" in lines
+    assert "🤖 AI = select,node-a,🔁 故障转移,⚡ 自动选择,🧭 手动选择" in lines
     assert "🔎 Google = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
     assert "💻 GitHub = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
     assert "🛠 Developer = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
@@ -431,7 +431,7 @@ def test_manual_only_nodes_are_visible_but_excluded_from_default_groups(tmp_path
     assert "Pin-Che · pinche-cdn" not in groups["🚀 代理"]
     assert "Pin-Che · pinche-hy2" not in groups["🔁 故障转移"]
     assert "Pin-Che · pinche-cdn" not in groups["⚡ 自动选择"]
-    assert groups["🤖 AI"] == ["node-a"]
+    assert groups["🤖 AI"] == ["node-a", "🔁 故障转移", "⚡ 自动选择", "🧭 手动选择"]
     assert "Pin-Che · pinche-cdn" in groups["🧭 手动选择"]
     assert "Pin-Che · pinche-hy2" in groups["🧭 手动选择"]
     assert "Pin-Che: nodes=2, policy=manual_only, traffic=0.00B / 4.88TB, expires=2027-05-16" in (
@@ -441,7 +441,7 @@ def test_manual_only_nodes_are_visible_but_excluded_from_default_groups(tmp_path
     shadow_text = _render_shadowrocket(tmp_path, nodes=[primary_node, manual_node, hysteria_node])
     assert "Pin-Che · pinche-cdn=vless" in shadow_text
     assert "Pin-Che · pinche-hy2" not in shadow_text
-    assert "🤖 AI = select,node-a" in shadow_text
+    assert "🤖 AI = select,node-a,🔁 故障转移,⚡ 自动选择,🧭 手动选择" in shadow_text
 
 
 def test_shadowrocket_includes_new_sukkaw_layers_and_passes_policy_validation(tmp_path: Path) -> None:

@@ -200,7 +200,7 @@ GitHub / AI / Google / Developer / Telegram / Streaming：代理优先
 
 这个默认值的失败模式是可控的：少量未知国内域名可能先经历 CN IP 判断，国外未知流量不会直接落到 DIRECT。
 
-`AI` 分组刻意不把 `🚀 代理` 放在默认入口，而是直接列出主订阅源节点。这样即使主链路临时改到其他节点或后续手动选择 `Pin-Che`，ChatGPT、OpenAI、Claude 等 AI 流量仍保持在老节点池，除非明确进入 `🤖 AI` 分组调整。
+`AI` 分组刻意不把 `🚀 代理` 放在默认入口，而是先直接列出主订阅源节点，再提供 `🔁 故障转移`、`⚡ 自动选择`、`🧭 手动选择` 作为显式可选项。这样即使主链路临时改到其他节点或后续手动选择 `Pin-Che`，ChatGPT、OpenAI、Claude 等 AI 流量仍保持在老节点池，除非明确进入 `🤖 AI` 分组调整。
 
 `GitHub`、`Developer`、`Streaming`、`Download` 这些关键国外组不包含 `DIRECT` 成员。这是为了避免客户端 `store-selected` 把一次临时手动选择持久化成长期 DIRECT，导致 GitHub、开发下载或国外大文件下载重新绕开代理。需要全局应急直连时，仍可以从 `🚀 代理` 或 `🌐 兜底` 这类更上层组操作。
 

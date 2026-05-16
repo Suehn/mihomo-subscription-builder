@@ -143,7 +143,9 @@ Mihomo and Shadowrocket share the same group names where possible:
 - `🌐 兜底`: Mihomo defaults proxy-first; iOS defaults DIRECT first.
 - `🤖 AI`: uses the primary upstream nodes directly by default instead of the
   main `🚀 代理` selector. Changing the main chain therefore does not
-  automatically move ChatGPT, OpenAI, Claude, or similar AI traffic.
+  automatically move ChatGPT, OpenAI, Claude, or similar AI traffic. It still
+  exposes fallback, auto, and manual choices inside the AI group for explicit
+  overrides.
 
 Optional secondary node sources such as `Pin-Che` are marked `manual_only`.
 Those nodes are rendered into Mihomo so they can be selected manually, but they
