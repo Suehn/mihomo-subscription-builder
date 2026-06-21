@@ -8,6 +8,7 @@ import re
 import time
 from typing import Iterable
 import urllib.error
+from urllib.parse import urlparse
 import urllib.request
 
 import yaml
@@ -53,6 +54,21 @@ def fetch_url_text(url: str, user_agent: str) -> str:
     return fetch_subscription(url, user_agent).text
 
 
+def _safe_url_label(url: str) -> str:
+    parsed = urlparse(url)
+    return parsed.netloc or parsed.scheme or "subscription"
+
+
+def _fetch_error_summary(error: Exception | None) -> str:
+    if isinstance(error, urllib.error.HTTPError):
+        return f"HTTP {error.code}"
+    if isinstance(error, urllib.error.URLError):
+        return str(error.reason)
+    if error is None:
+        return "unknown error"
+    return error.__class__.__name__
+
+
 def fetch_subscription(url: str, user_agent: str) -> FetchedSubscription:
     request = urllib.request.Request(url, headers={"User-Agent": user_agent})
     last_error: Exception | None = None
@@ -68,7 +84,9 @@ def fetch_subscription(url: str, user_agent: str) -> FetchedSubscription:
             if attempt == 2:
                 break
             time.sleep(1.5 * (attempt + 1))
-    raise RuntimeError(f"Failed to fetch upstream subscription after retries: {url}") from last_error
+    raise RuntimeError(
+        f"Failed to fetch upstream subscription after retries: {_safe_url_label(url)} ({_fetch_error_summary(last_error)})"
+    ) from None
 
 
 def decode_subscription_payload(raw_text: str) -> str:

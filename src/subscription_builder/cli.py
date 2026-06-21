@@ -53,16 +53,32 @@ def _fetch_configured_nodes(args: argparse.Namespace, config: ProjectConfig) -> 
                     f"Missing upstream subscription URL. Set {source.env_var} or pass --upstream-url."
                 )
             continue
-        result = fetch_and_parse_node_source(
-            url=source_url,
-            user_agent=config.user_agent,
-            source_id=source.source_id,
-            label=source.label,
-            group_policy=source.group_policy,
-            include_name_contains=source.include_name_contains,
-            include_name_regex=source.include_name_regex,
-            metadata=source.metadata,
-        )
+        try:
+            result = fetch_and_parse_node_source(
+                url=source_url,
+                user_agent=config.user_agent,
+                source_id=source.source_id,
+                label=source.label,
+                group_policy=source.group_policy,
+                include_name_contains=source.include_name_contains,
+                include_name_regex=source.include_name_regex,
+                metadata=source.metadata,
+            )
+        except RuntimeError as exc:
+            if source.required:
+                raise
+            print(f"Warning: optional node source {source.source_id!r} skipped: {exc}", file=sys.stderr)
+            source_results.append(
+                NodeSourceResult(
+                    source_id=source.source_id,
+                    label=source.label,
+                    group_policy=source.group_policy,
+                    nodes=[],
+                    userinfo={},
+                    metadata={**source.metadata, "fetch_error": str(exc)},
+                )
+            )
+            continue
         nodes.extend(result.nodes)
         source_results.append(result)
     return nodes, source_results

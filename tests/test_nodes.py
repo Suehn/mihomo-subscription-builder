@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 
+import pytest
+
 from subscription_builder.models import ProxyNode
 from subscription_builder.nodes import (
     FetchedSubscription,
@@ -28,6 +30,35 @@ def test_decode_subscription_payload_preserves_raw_links() -> None:
 def test_split_links_filters_blank_lines() -> None:
     payload = "vless://foo.example:443#A\r\n\r\nvmess://abc\nnot-a-link\n"
     assert split_links(payload) == ["vless://foo.example:443#A", "vmess://abc"]
+
+
+def test_fetch_subscription_error_redacts_secret_url(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        raise urllib_error.HTTPError(
+            url="https://example.test/sub?token=secret-token",
+            code=403,
+            msg="Forbidden",
+            hdrs={},
+            fp=None,
+        )
+
+    from urllib import error as urllib_error
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        fetch_and_parse_node_source(
+            url="https://example.test/sub?token=secret-token",
+            user_agent="test",
+            source_id="test",
+            label="Test",
+            group_policy="default",
+        )
+
+    message = str(exc_info.value)
+    assert "example.test" in message
+    assert "secret-token" not in message
+    assert "token=" not in message
 
 
 def test_parse_vless_reality_node() -> None:
