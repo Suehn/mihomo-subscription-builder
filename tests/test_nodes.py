@@ -120,6 +120,41 @@ proxies:
     assert nodes[1].to_mihomo_proxy()["up"] == 100
 
 
+def test_parse_mihomo_subscription_prefers_yaml_even_when_fields_contain_urls() -> None:
+    payload = """
+proxies:
+  - { name: "台湾 09 家宽", type: vless, server: tw09.example.test, port: 443, uuid: 00000000-0000-4000-8000-000000000009, tls: true, network: ws, ws-opts: { path: "https://example.test/ws", headers: { Host: edge.example.test } } }
+""".strip()
+
+    nodes = parse_nodes_text(payload)
+
+    assert [node.name for node in nodes] == ["台湾 09 家宽"]
+    assert nodes[0].ws_path == "https://example.test/ws"
+
+
+def test_parse_mihomo_anytls_node() -> None:
+    payload = """
+proxies:
+  - { name: "台湾 09 家宽", type: anytls, server: tw09.example.test, port: 443, password: secret, sni: www.example.com, client-fingerprint: chrome, alpn: [h2], udp: true }
+""".strip()
+
+    nodes = parse_nodes_text(payload)
+    rendered = nodes[0].to_mihomo_proxy()
+
+    assert nodes[0].type == "anytls"
+    assert rendered["type"] == "anytls"
+    assert rendered["password"] == "secret"
+    assert rendered["sni"] == "www.example.com"
+    assert rendered["client-fingerprint"] == "chrome"
+    assert rendered["alpn"] == ["h2"]
+    assert nodes[0].supports_shadowrocket_config() is True
+    assert nodes[0].to_uri().startswith("anytls://secret@tw09.example.test:443?")
+    assert nodes[0].to_shadowrocket_proxy_line() == (
+        "台湾 09 家宽=anytls,tw09.example.test,443,password=secret,udp=1,"
+        "sni=www.example.com,client-fingerprint=chrome,alpn=h2"
+    )
+
+
 def test_node_source_can_import_only_home_broadband_nodes(monkeypatch) -> None:
     payload = """
 proxies:

@@ -91,6 +91,8 @@ def fetch_subscription(url: str, user_agent: str) -> FetchedSubscription:
 
 def decode_subscription_payload(raw_text: str) -> str:
     candidate = raw_text.strip()
+    if candidate.startswith("proxies:") or "\nproxies:" in candidate:
+        return candidate
     if "://" in candidate:
         return candidate
     try:
@@ -111,6 +113,21 @@ def _is_loopback_metadata_proxy(payload: dict[str, object]) -> bool:
 
 
 def _parse_nodes_payload(payload: str) -> list[ProxyNode]:
+    try:
+        decoded = yaml.safe_load(payload)
+    except yaml.YAMLError:
+        decoded = None
+    if isinstance(decoded, dict) and isinstance(decoded.get("proxies"), list):
+        nodes = []
+        for item in decoded["proxies"]:
+            if not isinstance(item, dict) or _is_loopback_metadata_proxy(item):
+                continue
+            try:
+                nodes.append(ProxyNode.from_mihomo_proxy(item))
+            except (KeyError, TypeError, ValueError):
+                continue
+        return nodes
+
     links = split_links(payload)
     if links:
         nodes: list[ProxyNode] = []
@@ -121,22 +138,7 @@ def _parse_nodes_payload(payload: str) -> list[ProxyNode]:
                 continue
         return nodes
 
-    try:
-        decoded = yaml.safe_load(payload)
-    except yaml.YAMLError:
-        return []
-    if not isinstance(decoded, dict) or not isinstance(decoded.get("proxies"), list):
-        return []
-
-    nodes = []
-    for item in decoded["proxies"]:
-        if not isinstance(item, dict) or _is_loopback_metadata_proxy(item):
-            continue
-        try:
-            nodes.append(ProxyNode.from_mihomo_proxy(item))
-        except (KeyError, TypeError, ValueError):
-            continue
-    return nodes
+    return []
 
 
 def parse_nodes_text(raw_text: str) -> list[ProxyNode]:

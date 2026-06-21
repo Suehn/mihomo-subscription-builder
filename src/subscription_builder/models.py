@@ -205,6 +205,18 @@ class ProxyNode:
                 up=int(payload["up"]) if payload.get("up") is not None else None,
                 down=int(payload["down"]) if payload.get("down") is not None else None,
             )
+        if node_type == "anytls":
+            return cls(
+                name=_clean_name(str(payload.get("name", "anytls"))),
+                type="anytls",
+                server=str(payload["server"]),
+                port=int(payload.get("port", 443)),
+                password=str(payload.get("password", "")),
+                servername=str(payload.get("sni") or payload.get("servername") or "") or None,
+                client_fingerprint=str(payload.get("client-fingerprint") or payload.get("client_fingerprint") or "") or None,
+                skip_cert_verify=bool(payload.get("skip-cert-verify", False)),
+                alpn=[str(item) for item in payload.get("alpn", [])] if isinstance(payload.get("alpn"), list) else [],
+            )
         if node_type == "trojan":
             return cls(
                 name=_clean_name(str(payload.get("name", "trojan"))),
@@ -247,13 +259,13 @@ class ProxyNode:
         }
         if self.type in {"vless", "vmess"} and self.uuid:
             data["uuid"] = self.uuid
-        if self.type in {"trojan", "ss", "hysteria2"} and self.password:
+        if self.type in {"trojan", "ss", "hysteria2", "anytls"} and self.password:
             data["password"] = self.password
         if self.type == "ss":
             data["cipher"] = self.cipher or "auto"
         if self.tls:
             data["tls"] = True
-        if self.servername and self.type == "hysteria2":
+        if self.servername and self.type in {"hysteria2", "anytls"}:
             data["sni"] = self.servername
         elif self.servername:
             data["servername"] = self.servername
@@ -326,6 +338,20 @@ class ProxyNode:
                 f"hysteria2://{quote(self.password, safe='')}@{self.server}:{self.port}"
                 f"?{urlencode(query)}#{quote(self.name)}"
             )
+        if self.type == "anytls" and self.password:
+            query = {}
+            if self.servername:
+                query["sni"] = self.servername
+            if self.client_fingerprint:
+                query["fp"] = self.client_fingerprint
+            if self.alpn:
+                query["alpn"] = ",".join(self.alpn)
+            if self.skip_cert_verify:
+                query["insecure"] = "1"
+            return (
+                f"anytls://{quote(self.password, safe='')}@{self.server}:{self.port}"
+                f"?{urlencode(query)}#{quote(self.name)}"
+            )
         if self.type == "ss" and self.password:
             userinfo = base64.urlsafe_b64encode(
                 f"{self.cipher or 'aes-256-gcm'}:{self.password}".encode("utf-8")
@@ -334,7 +360,7 @@ class ProxyNode:
         raise ValueError(f"Raw URI is unavailable for {self.name}")
 
     def supports_shadowrocket_config(self) -> bool:
-        return self.type in {"vless", "trojan", "ss", "vmess"}
+        return self.type in {"vless", "trojan", "ss", "vmess", "anytls"}
 
     def to_shadowrocket_proxy_line(self) -> str:
         if self.type == "vless":
@@ -402,5 +428,20 @@ class ProxyNode:
                     parts.append(f"path={self.ws_path}")
             else:
                 parts.append("obfs=none")
+            return ",".join(parts)
+        if self.type == "anytls":
+            parts = [
+                f"{self.name}=anytls,{self.server},{self.port}",
+                f"password={self.password}",
+                f"udp={1 if self.udp else 0}",
+            ]
+            if self.servername:
+                parts.append(f"sni={self.servername}")
+            if self.client_fingerprint:
+                parts.append(f"client-fingerprint={self.client_fingerprint}")
+            if self.alpn:
+                parts.append(f"alpn={','.join(self.alpn)}")
+            if self.skip_cert_verify:
+                parts.append("skip-cert-verify=true")
             return ",".join(parts)
         raise ValueError(f"Shadowrocket local line is unsupported for proxy type: {self.type}")
