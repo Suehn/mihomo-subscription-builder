@@ -4,6 +4,7 @@ subscription:
   - id: mesl
     label: MESL
     env_var: MESL_SUB_URL
+    text_env_var: MESL_SUB_TEXT
     required: false
     group_policy: manual_only
     include_name_contains:

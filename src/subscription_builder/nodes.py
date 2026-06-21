@@ -170,6 +170,35 @@ def filter_nodes_by_name(
     return selected
 
 
+def parse_node_source_text(
+    *,
+    raw_text: str,
+    source_id: str,
+    label: str,
+    group_policy: str,
+    include_name_contains: Iterable[str] | None = None,
+    include_name_regex: str | None = None,
+    userinfo: dict[str, int] | None = None,
+    metadata: dict[str, object] | None = None,
+) -> NodeSourceResult:
+    nodes = [
+        node.apply_source(source_id=source_id, source_label=label, group_policy=group_policy)
+        for node in filter_nodes_by_name(
+            parse_nodes_text(raw_text),
+            include_name_contains=include_name_contains,
+            include_name_regex=include_name_regex,
+        )
+    ]
+    return NodeSourceResult(
+        source_id=source_id,
+        label=label,
+        group_policy=group_policy,
+        nodes=nodes,
+        userinfo=dict(userinfo or {}),
+        metadata=dict(metadata or {}),
+    )
+
+
 def fetch_and_parse_node_source(
     *,
     url: str,
@@ -182,21 +211,15 @@ def fetch_and_parse_node_source(
     metadata: dict[str, object] | None = None,
 ) -> NodeSourceResult:
     fetched = fetch_subscription(url, user_agent)
-    nodes = [
-        node.apply_source(source_id=source_id, source_label=label, group_policy=group_policy)
-        for node in filter_nodes_by_name(
-            parse_nodes_text(fetched.text),
-            include_name_contains=include_name_contains,
-            include_name_regex=include_name_regex,
-        )
-    ]
-    return NodeSourceResult(
+    return parse_node_source_text(
+        raw_text=fetched.text,
         source_id=source_id,
         label=label,
         group_policy=group_policy,
-        nodes=nodes,
+        include_name_contains=include_name_contains,
+        include_name_regex=include_name_regex,
         userinfo=fetched.userinfo,
-        metadata=dict(metadata or {}),
+        metadata=metadata,
     )
 
 

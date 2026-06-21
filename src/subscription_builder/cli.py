@@ -11,6 +11,7 @@ from .models import ProxyNode
 from .nodes import (
     NodeSourceResult,
     fetch_and_parse_node_source,
+    parse_node_source_text,
     read_nodes_json,
     write_node_source_audit,
     write_nodes_json,
@@ -47,27 +48,55 @@ def _fetch_configured_nodes(args: argparse.Namespace, config: ProjectConfig) -> 
     for source in config.node_sources:
         explicit_url = args.upstream_url if source.source_id == primary_source_id else None
         source_url = explicit_url or os.environ.get(source.env_var, "")
-        if not source_url:
+        source_text = os.environ.get(source.text_env_var, "") if source.text_env_var else ""
+        if not source_url and not source_text:
             if source.required:
                 raise ValueError(
                     f"Missing upstream subscription URL. Set {source.env_var} or pass --upstream-url."
                 )
             continue
-        try:
-            result = fetch_and_parse_node_source(
-                url=source_url,
-                user_agent=config.user_agent,
+
+        fetch_error: RuntimeError | None = None
+        result: NodeSourceResult | None = None
+        if source_url:
+            try:
+                result = fetch_and_parse_node_source(
+                    url=source_url,
+                    user_agent=config.user_agent,
+                    source_id=source.source_id,
+                    label=source.label,
+                    group_policy=source.group_policy,
+                    include_name_contains=source.include_name_contains,
+                    include_name_regex=source.include_name_regex,
+                    metadata=source.metadata,
+                )
+            except RuntimeError as exc:
+                fetch_error = exc
+
+        if result is None and source_text:
+            metadata = {**source.metadata}
+            if fetch_error is not None:
+                metadata["fetch_error"] = str(fetch_error)
+                metadata["fallback"] = source.text_env_var
+                print(
+                    f"Warning: optional node source {source.source_id!r} URL fetch failed; "
+                    f"using {source.text_env_var} fallback: {fetch_error}",
+                    file=sys.stderr,
+                )
+            result = parse_node_source_text(
+                raw_text=source_text,
                 source_id=source.source_id,
                 label=source.label,
                 group_policy=source.group_policy,
                 include_name_contains=source.include_name_contains,
                 include_name_regex=source.include_name_regex,
-                metadata=source.metadata,
+                metadata=metadata,
             )
-        except RuntimeError as exc:
+
+        if result is None and fetch_error is not None:
             if source.required:
-                raise
-            print(f"Warning: optional node source {source.source_id!r} skipped: {exc}", file=sys.stderr)
+                raise fetch_error
+            print(f"Warning: optional node source {source.source_id!r} skipped: {fetch_error}", file=sys.stderr)
             source_results.append(
                 NodeSourceResult(
                     source_id=source.source_id,
@@ -78,6 +107,8 @@ def _fetch_configured_nodes(args: argparse.Namespace, config: ProjectConfig) -> 
                     metadata={**source.metadata, "fetch_error": str(exc)},
                 )
             )
+            continue
+        if result is None:
             continue
         nodes.extend(result.nodes)
         source_results.append(result)

@@ -156,7 +156,9 @@ Optional secondary node sources are explicit:
 - `MESL_SUB_URL` is marked `manual_only` but filtered to names containing
   `家宽`. Those nodes are manually selectable and are also used by the dedicated
   AI groups. They are excluded from the ordinary `🔁 故障转移` and `⚡ 自动选择`
-  defaults, so non-AI routing keeps the existing default chain.
+  defaults, so non-AI routing keeps the existing default chain. If the live MESL
+  endpoint rate-limits a build, `MESL_SUB_TEXT` can provide a private cached
+  home-node YAML fallback without committing node data.
 - `PINCHE_SUB_URL` remains manual-only. Those nodes are rendered so they can be
   selected manually, but they are excluded from `🔁 故障转移`, `⚡ 自动选择`,
   `🤖 AI 自动选择`, and `🤖 AI 故障转移` defaults.
@@ -316,6 +318,7 @@ pip install -e '.[dev]'
 
 export UPSTREAM_SUB_URL="https://example.com/sub/your-token"
 export MESL_SUB_URL="https://example.com/mesl/your-token" # optional; imports names containing 家宽
+export MESL_SUB_TEXT="$(cat /private/path/mesl-home-only.yaml)" # optional fallback
 export PINCHE_SUB_URL="https://example.com/pcdy/your-token" # optional, manual-only
 export PUBLIC_BASE_URL="https://suehn.github.io/mihomo-subscription-builder"
 export PRIVATE_BASE_URL="https://private.example.com/mihomo-subscription-builder"
@@ -355,6 +358,9 @@ Create the required repository secret:
   names contain `家宽` are imported. They remain manual-only for general routing,
   but `🤖 AI 故障转移` / `🤖 AI 自动选择` use them with `台湾 09 家宽` before
   `台湾 08 家宽`, followed by the other imported home broadband nodes.
+- `MESL_SUB_TEXT`: optional private cached MESL home-node YAML fallback. Use it
+  when the live MESL endpoint rate-limits GitHub Actions; it must stay in
+  GitHub Secrets and must not be committed.
 - `PINCHE_SUB_URL`: optional secondary subscription. When present, its nodes are
   included in Mihomo as manual-only `Pin-Che` nodes and excluded from default
   routing groups. Its node `server` entries are also covered by exact

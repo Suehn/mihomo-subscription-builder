@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from argparse import Namespace
 import base64
 
 import pytest
 
+from subscription_builder.cli import _fetch_configured_nodes
+from subscription_builder.config import NodeSourceSpec, ProjectConfig
 from subscription_builder.models import ProxyNode
 from subscription_builder.nodes import (
     FetchedSubscription,
@@ -141,6 +144,42 @@ proxies:
 
     assert [node.name for node in result.nodes] == ["MESL · 台湾 09 家宽", "MESL · 日本 01 家宽"]
     assert all(node.source_group_policy == "manual_only" for node in result.nodes)
+
+
+def test_configured_node_source_can_use_text_env_fallback(monkeypatch) -> None:
+    monkeypatch.delenv("MESL_SUB_URL", raising=False)
+    monkeypatch.setenv(
+        "MESL_SUB_TEXT",
+        """
+proxies:
+  - { name: "台湾 09 家宽", type: vless, server: tw09.example.test, port: 443, uuid: 00000000-0000-4000-8000-000000000009, tls: true }
+  - { name: "台湾 10 普通", type: vless, server: tw10.example.test, port: 443, uuid: 00000000-0000-4000-8000-000000000010, tls: true }
+""".strip(),
+    )
+    config = ProjectConfig(
+        subscription_env_var="UPSTREAM_SUB_URL",
+        node_sources=[
+            NodeSourceSpec(
+                source_id="mesl",
+                label="MESL",
+                env_var="MESL_SUB_URL",
+                text_env_var="MESL_SUB_TEXT",
+                required=False,
+                group_policy="manual_only",
+                include_name_contains=["家宽"],
+            )
+        ],
+        public_base_url_env="PUBLIC_BASE_URL",
+        private_base_url_env="PRIVATE_BASE_URL",
+        default_public_base_url="https://example.test",
+        user_agent="test",
+        rules=[],
+    )
+
+    nodes, source_results = _fetch_configured_nodes(Namespace(upstream_url=None), config)
+
+    assert [node.name for node in nodes] == ["MESL · 台湾 09 家宽"]
+    assert source_results[0].source_id == "mesl"
 
 
 def test_write_node_source_audit_records_traffic_metadata(tmp_path) -> None:

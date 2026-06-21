@@ -33,7 +33,7 @@ P2 节点发布安全：规则公开，完整订阅走私有 URL
 
 `UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供。生成器解析 `vless://`、`vmess://`、`trojan://`、`ss://` URI 订阅，也支持 Mihomo / Clash YAML 里的 `proxies` 列表，并输出 Mihomo 和 Shadowrocket 可用的订阅文件。
 
-`MESL_SUB_URL` 是可选的家宽订阅源。生成器只导入原始节点名包含 `家宽` 的 MESL 节点，并把它们标记为 `manual_only`：普通 `🔁 故障转移` / `⚡ 自动选择` 不会默认使用这些节点，但它们会进入 `🧭 手动选择`，也会进入 AI 专用候选池。`🤖 AI 故障转移` 会把 `台湾 09 家宽` 放第一、`台湾 08 家宽` 放第二，再接其他 MESL 家宽节点；没有 MESL 家宽节点时，AI 专用组回落到主订阅默认节点，保证配置仍可用。
+`MESL_SUB_URL` 是可选的家宽订阅源。生成器只导入原始节点名包含 `家宽` 的 MESL 节点，并把它们标记为 `manual_only`：普通 `🔁 故障转移` / `⚡ 自动选择` 不会默认使用这些节点，但它们会进入 `🧭 手动选择`，也会进入 AI 专用候选池。`🤖 AI 故障转移` 会把 `台湾 09 家宽` 放第一、`台湾 08 家宽` 放第二，再接其他 MESL 家宽节点；没有 MESL 家宽节点时，AI 专用组回落到主订阅默认节点，保证配置仍可用。若 MESL 实时端点对 GitHub Actions 限频，可以通过私密 `MESL_SUB_TEXT` secret 提供只含家宽节点的缓存 YAML 后备，但节点内容仍不能提交到仓库。
 
 `PINCHE_SUB_URL` 是可选的第二订阅源。它同样被标记为 `manual_only`：节点会进入 Mihomo 输出，并追加显示在 `🚀 代理` 与 `🧭 手动选择` 里，方便在客户端手动选择；但不会进入 `🔁 故障转移`、`⚡ 自动选择`、`🤖 AI 自动选择` 或 `🤖 AI 故障转移` 默认候选池。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留，方便看到剩余流量和到期时间。
 

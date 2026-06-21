@@ -12,6 +12,7 @@ class NodeSourceSpec:
     source_id: str
     label: str
     env_var: str
+    text_env_var: str | None = None
     required: bool = True
     group_policy: str = "default"
     include_name_contains: list[str] = field(default_factory=list)
@@ -83,6 +84,7 @@ def load_project_config(config_path: Path) -> ProjectConfig:
         source_id=str(subscription.get("id", "primary")),
         label=str(subscription.get("label", "Primary")),
         env_var=subscription["env_var"],
+        text_env_var=str(subscription["text_env_var"]) if subscription.get("text_env_var") else None,
         required=True,
         group_policy=str(subscription.get("group_policy", "default")),
         include_name_contains=_string_list(subscription.get("include_name_contains")),
@@ -96,6 +98,7 @@ def load_project_config(config_path: Path) -> ProjectConfig:
                 source_id=str(item["id"]),
                 label=str(item.get("label", item["id"])),
                 env_var=str(item["env_var"]),
+                text_env_var=str(item["text_env_var"]) if item.get("text_env_var") else None,
                 required=bool(item.get("required", False)),
                 group_policy=str(item.get("group_policy", "manual_only")),
                 include_name_contains=_string_list(item.get("include_name_contains")),
