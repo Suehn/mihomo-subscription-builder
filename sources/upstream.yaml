@@ -1,6 +1,15 @@
 subscription:
   env_var: UPSTREAM_SUB_URL
   extra_sources:
+  - id: mesl
+    label: MESL
+    env_var: MESL_SUB_URL
+    required: false
+    group_policy: manual_only
+    include_name_contains:
+      - 家宽
+    metadata:
+      note: Set MESL_SUB_URL locally or as a GitHub Secret; only nodes whose names contain 家宽 are imported.
   - id: pinche
     label: Pin-Che
     env_var: PINCHE_SUB_URL

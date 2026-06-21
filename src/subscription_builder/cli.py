@@ -59,6 +59,8 @@ def _fetch_configured_nodes(args: argparse.Namespace, config: ProjectConfig) -> 
             source_id=source.source_id,
             label=source.label,
             group_policy=source.group_policy,
+            include_name_contains=source.include_name_contains,
+            include_name_regex=source.include_name_regex,
             metadata=source.metadata,
         )
         nodes.extend(result.nodes)

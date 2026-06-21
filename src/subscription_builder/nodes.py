@@ -4,6 +4,7 @@ import base64
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
+import re
 import time
 from typing import Iterable
 import urllib.error
@@ -133,6 +134,24 @@ def fetch_and_parse_nodes(url: str, user_agent: str) -> list[ProxyNode]:
     return parse_nodes_text(fetched.text)
 
 
+def filter_nodes_by_name(
+    nodes: Iterable[ProxyNode],
+    *,
+    include_name_contains: Iterable[str] | None = None,
+    include_name_regex: str | None = None,
+) -> list[ProxyNode]:
+    contains = [item for item in (include_name_contains or []) if item]
+    pattern = re.compile(include_name_regex) if include_name_regex else None
+    selected: list[ProxyNode] = []
+    for node in nodes:
+        if contains and not any(token in node.name for token in contains):
+            continue
+        if pattern and not pattern.search(node.name):
+            continue
+        selected.append(node)
+    return selected
+
+
 def fetch_and_parse_node_source(
     *,
     url: str,
@@ -140,12 +159,18 @@ def fetch_and_parse_node_source(
     source_id: str,
     label: str,
     group_policy: str,
+    include_name_contains: Iterable[str] | None = None,
+    include_name_regex: str | None = None,
     metadata: dict[str, object] | None = None,
 ) -> NodeSourceResult:
     fetched = fetch_subscription(url, user_agent)
     nodes = [
         node.apply_source(source_id=source_id, source_label=label, group_policy=group_policy)
-        for node in parse_nodes_text(fetched.text)
+        for node in filter_nodes_by_name(
+            parse_nodes_text(fetched.text),
+            include_name_contains=include_name_contains,
+            include_name_regex=include_name_regex,
+        )
     ]
     return NodeSourceResult(
         source_id=source_id,

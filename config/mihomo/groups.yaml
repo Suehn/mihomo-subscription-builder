@@ -37,14 +37,41 @@ groups:
       - "@AUTO"
       - "@MANUAL"
     include_nodes: true
+  - key: AI_FALLBACK
+    type: fallback
+    include_nodes:
+      source_ids:
+        - mesl
+      name_contains:
+        - 家宽
+      preferred_name_contains:
+        - 台湾 09 家宽
+        - 台湾 08 家宽
+      fallback_include_nodes: true
+    url: https://chatgpt.com/cdn-cgi/trace
+    interval: 300
+    timeout: 5000
+  - key: AI_AUTO
+    type: url-test
+    include_nodes:
+      source_ids:
+        - mesl
+      name_contains:
+        - 家宽
+      preferred_name_contains:
+        - 台湾 09 家宽
+        - 台湾 08 家宽
+      fallback_include_nodes: true
+    url: https://chatgpt.com/cdn-cgi/trace
+    interval: 300
+    tolerance: 50
+    timeout: 5000
   - key: AI
     type: select
     members:
-      - "@FALLBACK"
-      - "@AUTO"
+      - "@AI_FALLBACK"
+      - "@AI_AUTO"
       - "@MANUAL"
-    nodes_first: true
-    include_nodes: true
   - key: Google
     type: select
     members:

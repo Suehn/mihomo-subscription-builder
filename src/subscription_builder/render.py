@@ -22,6 +22,8 @@ GROUP_LABELS = {
     "PROXY": "🚀 代理",
     "RuleUpdate": "🔄 规则更新",
     "AI": "🤖 AI",
+    "AI_AUTO": "🤖 AI 自动选择",
+    "AI_FALLBACK": "🤖 AI 故障转移",
     "GitHub": "💻 GitHub",
     "Google": "🔎 Google",
     "Developer": "🛠 Developer",
@@ -122,6 +124,11 @@ def _insert_proxy_server_direct_rules(rules: list[str], nodes: Iterable[ProxyNod
 
 
 def _node_names_for_group(nodes: list[ProxyNode], include_nodes: object) -> list[str]:
+    if isinstance(include_nodes, dict):
+        selected = _node_names_for_group_spec(nodes, include_nodes)
+        if not selected and "fallback_include_nodes" in include_nodes:
+            return _node_names_for_group(nodes, include_nodes["fallback_include_nodes"])
+        return selected
     if not include_nodes:
         return []
     if include_nodes is True or include_nodes == "default":
@@ -131,6 +138,46 @@ def _node_names_for_group(nodes: list[ProxyNode], include_nodes: object) -> list
     if include_nodes == "all":
         return [node.name for node in nodes]
     raise ValueError(f"Unsupported include_nodes policy: {include_nodes}")
+
+
+def _string_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    raise TypeError(f"Expected string or list of strings, got: {type(value).__name__}")
+
+
+def _node_names_for_group_spec(nodes: list[ProxyNode], spec: dict[str, object]) -> list[str]:
+    source_ids = set(_string_list(spec.get("source_ids")))
+    group_policies = set(_string_list(spec.get("group_policies")))
+    name_contains = _string_list(spec.get("name_contains"))
+    name_regex = str(spec["name_regex"]) if spec.get("name_regex") else ""
+    name_pattern = re.compile(name_regex) if name_regex else None
+    preferred_name_contains = _string_list(spec.get("preferred_name_contains"))
+
+    selected: list[tuple[int, ProxyNode]] = []
+    for index, node in enumerate(nodes):
+        if source_ids and node.source_id not in source_ids:
+            continue
+        if group_policies and node.source_group_policy not in group_policies:
+            continue
+        if name_contains and not any(token in node.name for token in name_contains):
+            continue
+        if name_pattern and not name_pattern.search(node.name):
+            continue
+        selected.append((index, node))
+
+    def sort_key(item: tuple[int, ProxyNode]) -> tuple[int, int]:
+        index, node = item
+        for rank, token in enumerate(preferred_name_contains):
+            if token in node.name:
+                return rank, index
+        return len(preferred_name_contains), index
+
+    return [node.name for _, node in sorted(selected, key=sort_key)]
 
 
 def _format_bytes(value: object) -> str:

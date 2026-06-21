@@ -19,6 +19,8 @@ through the private `UPSTREAM_SUB_URL` secret.
 ## What It Does
 
 - Pulls the upstream subscription from `UPSTREAM_SUB_URL`
+- Optionally merges `MESL_SUB_URL` home broadband nodes whose names contain
+  `家宽` for AI-first routing and manual selection
 - Optionally merges a secondary `PINCHE_SUB_URL` subscription as manual-only
   nodes
 - Decodes Base64 subscriptions automatically
@@ -141,18 +143,26 @@ Mihomo and Shadowrocket share the same group names where possible:
   candidates are handled by earlier domestic mirrors and Mihomo's
   `AND(download,GEOIP,CN)` split, not by making the whole download group DIRECT.
 - `🌐 兜底`: Mihomo defaults proxy-first; iOS defaults DIRECT first.
-- `🤖 AI`: uses the primary upstream nodes directly by default instead of the
-  main `🚀 代理` selector. Changing the main chain therefore does not
-  automatically move ChatGPT, OpenAI, Claude, or similar AI traffic. It still
-  exposes fallback, auto, and manual choices inside the AI group for explicit
-  overrides.
+- `🤖 AI`: defaults to `🤖 AI 故障转移`, then offers `🤖 AI 自动选择` and
+  `🧭 手动选择`. The dedicated AI groups are tested against
+  `https://chatgpt.com/cdn-cgi/trace` rather than inheriting the general
+  `🚀 代理` health check. When MESL home broadband nodes are present, the AI
+  fallback order is `台湾 09 家宽`, `台湾 08 家宽`, then other MESL nodes whose
+  names contain `家宽`. If no such nodes are present, the group falls back to the
+  primary default nodes so the config remains usable.
 
-Optional secondary node sources such as `Pin-Che` are marked `manual_only`.
-Those nodes are rendered into Mihomo so they can be selected manually, but they
-are appended after the default entries in `🚀 代理` and excluded from
-`🔁 故障转移`, `⚡ 自动选择`, and `🤖 AI` defaults. Traffic quota and expiry
-metadata are written to `dist/node-sources.json` and also emitted as comments
-near the top of generated configs.
+Optional secondary node sources are explicit:
+
+- `MESL_SUB_URL` is marked `manual_only` but filtered to names containing
+  `家宽`. Those nodes are manually selectable and are also used by the dedicated
+  AI groups. They are excluded from the ordinary `🔁 故障转移` and `⚡ 自动选择`
+  defaults, so non-AI routing keeps the existing default chain.
+- `PINCHE_SUB_URL` remains manual-only. Those nodes are rendered so they can be
+  selected manually, but they are excluded from `🔁 故障转移`, `⚡ 自动选择`,
+  `🤖 AI 自动选择`, and `🤖 AI 故障转移` defaults.
+
+Traffic quota and expiry metadata are written to `dist/node-sources.json` and
+also emitted as comments near the top of generated configs.
 
 Generated private configs also prepend exact DIRECT rules for each proxy
 server entry. IP nodes are rendered as single-address `IP-CIDR` / `IP-CIDR6`
@@ -305,6 +315,7 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 
 export UPSTREAM_SUB_URL="https://example.com/sub/your-token"
+export MESL_SUB_URL="https://example.com/mesl/your-token" # optional; imports names containing 家宽
 export PINCHE_SUB_URL="https://example.com/pcdy/your-token" # optional, manual-only
 export PUBLIC_BASE_URL="https://suehn.github.io/mihomo-subscription-builder"
 export PRIVATE_BASE_URL="https://private.example.com/mihomo-subscription-builder"
@@ -340,6 +351,10 @@ The public-safe GitHub Pages artifact lands in `public-dist/`:
 Create the required repository secret:
 
 - `UPSTREAM_SUB_URL`
+- `MESL_SUB_URL`: optional MESL subscription. When present, only nodes whose
+  names contain `家宽` are imported. They remain manual-only for general routing,
+  but `🤖 AI 故障转移` / `🤖 AI 自动选择` use them with `台湾 09 家宽` before
+  `台湾 08 家宽`, followed by the other imported home broadband nodes.
 - `PINCHE_SUB_URL`: optional secondary subscription. When present, its nodes are
   included in Mihomo as manual-only `Pin-Che` nodes and excluded from default
   routing groups. Its node `server` entries are also covered by exact

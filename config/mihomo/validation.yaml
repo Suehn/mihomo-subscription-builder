@@ -5,6 +5,8 @@ foreign_groups_no_direct_first:
   - Final
   - GitHub
   - AI
+  - AI_AUTO
+  - AI_FALLBACK
   - Google
   - Developer
   - Microsoft
@@ -14,6 +16,8 @@ foreign_groups_no_direct_first:
   - RuleUpdate
 foreign_groups_no_direct_member:
   - GitHub
+  - AI_AUTO
+  - AI_FALLBACK
   - Developer
   - Streaming
   - Download

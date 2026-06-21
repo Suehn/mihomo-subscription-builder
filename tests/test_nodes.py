@@ -3,7 +3,15 @@ from __future__ import annotations
 import base64
 
 from subscription_builder.models import ProxyNode
-from subscription_builder.nodes import NodeSourceResult, decode_subscription_payload, parse_nodes_text, split_links, write_node_source_audit
+from subscription_builder.nodes import (
+    FetchedSubscription,
+    NodeSourceResult,
+    decode_subscription_payload,
+    fetch_and_parse_node_source,
+    parse_nodes_text,
+    split_links,
+    write_node_source_audit,
+)
 
 
 def test_decode_subscription_payload_accepts_base64_text() -> None:
@@ -76,6 +84,32 @@ proxies:
     }
     assert nodes[1].to_mihomo_proxy()["sni"] == "zhuijumi.tv"
     assert nodes[1].to_mihomo_proxy()["up"] == 100
+
+
+def test_node_source_can_import_only_home_broadband_nodes(monkeypatch) -> None:
+    payload = """
+proxies:
+  - { name: "台湾 09 家宽", type: vless, server: tw09.example.test, port: 443, uuid: 00000000-0000-4000-8000-000000000009, tls: true }
+  - { name: "台湾 10 普通", type: vless, server: tw10.example.test, port: 443, uuid: 00000000-0000-4000-8000-000000000010, tls: true }
+  - { name: "日本 01 家宽", type: vless, server: jp01.example.test, port: 443, uuid: 00000000-0000-4000-8000-000000000011, tls: true }
+""".strip()
+
+    def fake_fetch_subscription(url: str, user_agent: str) -> FetchedSubscription:
+        return FetchedSubscription(text=payload, userinfo={})
+
+    monkeypatch.setattr("subscription_builder.nodes.fetch_subscription", fake_fetch_subscription)
+
+    result = fetch_and_parse_node_source(
+        url="https://example.test/mesl",
+        user_agent="test",
+        source_id="mesl",
+        label="MESL",
+        group_policy="manual_only",
+        include_name_contains=["家宽"],
+    )
+
+    assert [node.name for node in result.nodes] == ["MESL · 台湾 09 家宽", "MESL · 日本 01 家宽"]
+    assert all(node.source_group_policy == "manual_only" for node in result.nodes)
 
 
 def test_write_node_source_audit_records_traffic_metadata(tmp_path) -> None:

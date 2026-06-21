@@ -14,6 +14,8 @@ class NodeSourceSpec:
     env_var: str
     required: bool = True
     group_policy: str = "default"
+    include_name_contains: list[str] = field(default_factory=list)
+    include_name_regex: str | None = None
     metadata: dict[str, object] = field(default_factory=dict)
 
 
@@ -67,12 +69,24 @@ class ProjectConfig:
 def load_project_config(config_path: Path) -> ProjectConfig:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     subscription = raw["subscription"]
+
+    def _string_list(value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        raise TypeError(f"Expected string or list of strings, got: {type(value).__name__}")
+
     primary_source = NodeSourceSpec(
         source_id=str(subscription.get("id", "primary")),
         label=str(subscription.get("label", "Primary")),
         env_var=subscription["env_var"],
         required=True,
         group_policy=str(subscription.get("group_policy", "default")),
+        include_name_contains=_string_list(subscription.get("include_name_contains")),
+        include_name_regex=str(subscription["include_name_regex"]) if subscription.get("include_name_regex") else None,
         metadata=dict(subscription.get("metadata", {})),
     )
     node_sources = [primary_source]
@@ -84,6 +98,8 @@ def load_project_config(config_path: Path) -> ProjectConfig:
                 env_var=str(item["env_var"]),
                 required=bool(item.get("required", False)),
                 group_policy=str(item.get("group_policy", "manual_only")),
+                include_name_contains=_string_list(item.get("include_name_contains")),
+                include_name_regex=str(item["include_name_regex"]) if item.get("include_name_regex") else None,
                 metadata=dict(item.get("metadata", {})),
             )
         )
