@@ -217,6 +217,40 @@ proxies:
     assert source_results[0].source_id == "mesl"
 
 
+def test_optional_node_source_fetch_failure_is_recorded_without_text_fallback(monkeypatch, capsys) -> None:
+    def fail_fetch(**kwargs):
+        raise RuntimeError("Failed to fetch upstream subscription after retries: example.test (HTTP 522)")
+
+    monkeypatch.setenv("PINCHE_SUB_URL", "https://example.test/sub")
+    monkeypatch.setattr("subscription_builder.cli.fetch_and_parse_node_source", fail_fetch)
+    config = ProjectConfig(
+        subscription_env_var="UPSTREAM_SUB_URL",
+        node_sources=[
+            NodeSourceSpec(
+                source_id="pinche",
+                label="Pin-Che",
+                env_var="PINCHE_SUB_URL",
+                required=False,
+                group_policy="manual_only",
+            )
+        ],
+        public_base_url_env="PUBLIC_BASE_URL",
+        private_base_url_env="PRIVATE_BASE_URL",
+        default_public_base_url="https://example.test",
+        user_agent="test",
+        rules=[],
+    )
+
+    nodes, source_results = _fetch_configured_nodes(Namespace(upstream_url=None), config)
+
+    assert nodes == []
+    assert source_results[0].source_id == "pinche"
+    assert source_results[0].metadata["fetch_error"] == (
+        "Failed to fetch upstream subscription after retries: example.test (HTTP 522)"
+    )
+    assert "optional node source 'pinche' skipped" in capsys.readouterr().err
+
+
 def test_write_node_source_audit_records_traffic_metadata(tmp_path) -> None:
     node = ProxyNode(name="pin", type="vless", server="proxy.example.test", port=443, uuid="id").apply_source(
         source_id="pinche",

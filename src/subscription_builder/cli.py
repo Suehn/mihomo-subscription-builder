@@ -104,7 +104,7 @@ def _fetch_configured_nodes(args: argparse.Namespace, config: ProjectConfig) -> 
                     group_policy=source.group_policy,
                     nodes=[],
                     userinfo={},
-                    metadata={**source.metadata, "fetch_error": str(exc)},
+                    metadata={**source.metadata, "fetch_error": str(fetch_error)},
                 )
             )
             continue
