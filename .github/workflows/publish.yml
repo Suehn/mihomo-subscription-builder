@@ -83,7 +83,7 @@ jobs:
               exit 1
               ;;
           esac
-          ssh-keyscan -p "$SSH_PORT" "$PRIVATE_SSH_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -t ed25519,rsa -p "$SSH_PORT" "$PRIVATE_SSH_HOST" >> ~/.ssh/known_hosts
           SSH_COMMAND="ssh -i ~/.ssh/private_deploy_key -p $SSH_PORT \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
@@ -91,6 +91,7 @@ jobs:
             -o ConnectTimeout=20 \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=6"
+          $SSH_COMMAND "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST" "mkdir -p '$PRIVATE_SSH_PATH'"
           rsync -az --delete -e "$SSH_COMMAND" dist/ "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST:$PRIVATE_SSH_PATH/"
 
       - name: Configure Pages
