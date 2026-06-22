@@ -84,7 +84,7 @@ jobs:
               ;;
           esac
           ssh-keyscan -t ed25519,rsa -p "$SSH_PORT" "$PRIVATE_SSH_HOST" >> ~/.ssh/known_hosts
-          SSH_COMMAND="ssh -i ~/.ssh/private_deploy_key -p $SSH_PORT \
+          SSH_COMMAND="ssh -i $HOME/.ssh/private_deploy_key -p $SSH_PORT \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o PreferredAuthentications=publickey \
