@@ -147,8 +147,9 @@ Mihomo and Shadowrocket share the same group names where possible:
   `🧭 手动选择`. The dedicated AI groups are tested against
   `https://chatgpt.com/cdn-cgi/trace` rather than inheriting the general
   `🚀 代理` health check. When MESL home broadband nodes are present, the AI
-  fallback order is `台湾 09 家宽`, `台湾 08 家宽`, then other MESL nodes whose
-  names contain `家宽`. If no such nodes are present, the group falls back to the
+  fallback order is `台湾 09 家宽`, `台湾 08 家宽`, then the other imported
+  Taiwan home broadband nodes. If no Taiwan home broadband nodes are present,
+  the group falls back to the
   primary default nodes so the config remains usable.
 
 Optional secondary node sources are explicit:
@@ -357,7 +358,9 @@ Create the required repository secret:
 - `MESL_SUB_URL`: optional MESL subscription. When present, only nodes whose
   names contain `家宽` are imported. They remain manual-only for general routing,
   but `🤖 AI 故障转移` / `🤖 AI 自动选择` use them with `台湾 09 家宽` before
-  `台湾 08 家宽`, followed by the other imported home broadband nodes.
+  `台湾 08 家宽`, followed by the other imported Taiwan home broadband nodes.
+  Other imported MESL home broadband nodes remain available for manual
+  selection, but are not part of the default AI failover chain.
 - `MESL_SUB_TEXT`: optional private cached MESL home-node YAML fallback. Use it
   when the live MESL endpoint rate-limits GitHub Actions; it must stay in
   GitHub Secrets and must not be committed.

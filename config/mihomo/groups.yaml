@@ -44,6 +44,7 @@ groups:
         - mesl
       name_contains:
         - 家宽
+      name_regex: 台湾
       preferred_name_contains:
         - 台湾 09 家宽
         - 台湾 08 家宽
@@ -58,6 +59,7 @@ groups:
         - mesl
       name_contains:
         - 家宽
+      name_regex: 台湾
       preferred_name_contains:
         - 台湾 09 家宽
         - 台湾 08 家宽

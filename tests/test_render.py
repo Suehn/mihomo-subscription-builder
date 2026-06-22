@@ -467,7 +467,7 @@ def test_manual_only_nodes_are_visible_in_proxy_but_excluded_from_automatic_grou
     assert "DOMAIN,zhuijumi.tv,DIRECT" not in shadow_lines
 
 
-def test_ai_groups_prefer_mesl_home_nodes_across_clients(tmp_path: Path) -> None:
+def test_ai_groups_prefer_mesl_taiwan_home_nodes_across_clients(tmp_path: Path) -> None:
     primary_node = ProxyNode(
         name="node-a",
         type="vless",
@@ -519,22 +519,29 @@ def test_ai_groups_prefer_mesl_home_nodes_across_clients(tmp_path: Path) -> None
     )
     config = yaml.safe_load((tmp_path / "mihomo-full.yaml").read_text(encoding="utf-8"))
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
-    expected_home_order = [
+    expected_taiwan_home_order = [
         "MESL · 台湾 09 家宽",
         "MESL · 台湾 08 家宽",
         "MESL · 台湾 07 家宽",
-        "MESL · 日本 01 家宽",
     ]
+    expected_all_home_nodes = [*expected_taiwan_home_order, "MESL · 日本 01 家宽"]
 
     assert groups["🤖 AI"] == ["🤖 AI 故障转移", "🤖 AI 自动选择", "🧭 手动选择"]
-    assert groups["🤖 AI 故障转移"] == expected_home_order
-    assert groups["🤖 AI 自动选择"] == expected_home_order
-    assert all(node not in groups["🔁 故障转移"] for node in expected_home_order)
-    assert all(node not in groups["⚡ 自动选择"] for node in expected_home_order)
-    assert all(node in groups["🧭 手动选择"] for node in expected_home_order)
+    assert groups["🤖 AI 故障转移"] == expected_taiwan_home_order
+    assert groups["🤖 AI 自动选择"] == expected_taiwan_home_order
+    assert "MESL · 日本 01 家宽" not in groups["🤖 AI 故障转移"]
+    assert "MESL · 日本 01 家宽" not in groups["🤖 AI 自动选择"]
+    assert all(node not in groups["🔁 故障转移"] for node in expected_all_home_nodes)
+    assert all(node not in groups["⚡ 自动选择"] for node in expected_all_home_nodes)
+    assert all(node in groups["🧭 手动选择"] for node in expected_all_home_nodes)
 
     shadow_text = _render_shadowrocket(tmp_path, nodes=nodes)
-    expected_csv = ",".join(expected_home_order)
+    shadow_lines = shadow_text.splitlines()
+    shadow_manual_group = next(line for line in shadow_lines if line.startswith("🧭 手动选择 = "))
+    assert all(node in shadow_manual_group for node in expected_all_home_nodes)
+    assert "MESL · 日本 01 家宽=vless" in shadow_text
+
+    expected_csv = ",".join(expected_taiwan_home_order)
     assert (
         f"🤖 AI 故障转移 = fallback,{expected_csv},url=https://chatgpt.com/cdn-cgi/trace,interval=300"
         in shadow_text
