@@ -84,7 +84,14 @@ jobs:
               ;;
           esac
           ssh-keyscan -p "$SSH_PORT" "$PRIVATE_SSH_HOST" >> ~/.ssh/known_hosts
-          rsync -az --delete -e "ssh -i ~/.ssh/private_deploy_key -p $SSH_PORT" dist/ "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST:$PRIVATE_SSH_PATH/"
+          SSH_COMMAND="ssh -i ~/.ssh/private_deploy_key -p $SSH_PORT \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
+            -o ConnectTimeout=20 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=6"
+          rsync -az --delete -e "$SSH_COMMAND" dist/ "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST:$PRIVATE_SSH_PATH/"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
