@@ -33,9 +33,9 @@ P2 节点发布安全：规则公开，完整订阅走私有 URL
 
 `UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供。生成器解析 `vless://`、`vmess://`、`trojan://`、`ss://` URI 订阅，也支持 Mihomo / Clash YAML 里的 `proxies` 列表，并输出 Mihomo 和 Shadowrocket 可用的订阅文件。
 
-`MESL_SUB_URL` 是可选的家宽订阅源。生成器只导入原始节点名包含 `家宽` 的 MESL 节点，并把它们标记为 `manual_only`：普通 `🔁 故障转移` / `⚡ 自动选择` 不会默认使用这些节点，但它们会进入 `🧭 手动选择`。AI 专用候选池只取 MESL 台湾家宽节点：`🤖 AI 故障转移` 会把 `台湾 09 家宽` 放第一、`台湾 08 家宽` 放第二，再接其他台湾家宽节点；其他国家或地区的 MESL 家宽节点保留手动可选，但不会进入默认 AI 故障转移链。没有台湾家宽节点时，AI 专用组回落到主订阅默认节点，保证配置仍可用。若 MESL 实时端点对 GitHub Actions 限频，可以通过私密 `MESL_SUB_TEXT` secret 提供只含家宽节点的缓存 YAML 后备，但节点内容仍不能提交到仓库。
+`MESL_SUB_URL` 是可选的家宽订阅源。生成器只导入原始节点名包含 `家宽` 的 MESL 节点，并把它们标记为 `manual_only` 作为来源元数据；策略组层不再按来源排除这些节点，而是把它们加入各个静态 `select` 组供手动选择。`🤖 AI` 组默认优先选择名称包含 `美国 10 家宽` 的节点，用来服务 ChatGPT、OpenAI、Codex、Claude、Anthropic、Gemini 和 Apple Intelligence 流量；如果这个节点不存在，AI 组仍保留其他全部节点和 `🚀 代理` 作为手动选择项。若 MESL 实时端点对 GitHub Actions 限频，可以通过私密 `MESL_SUB_TEXT` secret 提供只含家宽节点的缓存 YAML 后备，但节点内容仍不能提交到仓库。
 
-`PINCHE_SUB_URL` 是可选的第二订阅源。它同样被标记为 `manual_only`：节点会进入 Mihomo 输出，并追加显示在 `🚀 代理` 与 `🧭 手动选择` 里，方便在客户端手动选择；但不会进入 `🔁 故障转移`、`⚡ 自动选择`、`🤖 AI 自动选择` 或 `🤖 AI 故障转移` 默认候选池。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留，方便看到剩余流量和到期时间。
+`PINCHE_SUB_URL` 是可选的第二订阅源。它同样被标记为 `manual_only`：节点会进入 Mihomo 输出，并显示在各个静态 `select` 组里，方便在客户端手动选择；但默认排序仍由 `🚀 代理` 和 `🤖 AI` 的 preferred token 控制，不会通过自动测速或故障转移自行切换。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留，方便看到剩余流量和到期时间。
 
 生成器会基于所有实际输出节点的 `server` 字段生成前置 self-DIRECT 规则，避免节点入口本身被规则链再次代理。这个规则层保持最小粒度：IPv4 只生成 `/32`，IPv6 只生成 `/128`，域名只生成 exact `DOMAIN`；不会从 `sni`、`servername`、WebSocket `Host` 或其他伪装字段推导规则，避免把 CDN、伪装域名或普通站点扩大直连。
 
@@ -194,19 +194,20 @@ Mihomo 端现在用逻辑规则拆 Download：
 Mihomo 端：
 
 ```text
-🤖 AI：默认走 ChatGPT 专用故障转移/自动选择，不通过 🚀 代理
-🌐 兜底：代理优先
+🚀 代理：默认首选名称包含 Suehn-Suehn2-260.97 的主节点
+🤖 AI：默认首选名称包含 美国 10 家宽 的节点
+🌐 兜底：代理优先，多端一致
 ⬇️ 下载：代理优先
-GitHub / AI / Google / Developer / Telegram / Streaming：代理优先
+GitHub / AI / Google / Developer / Telegram / Microsoft / Streaming：代理优先
 🍎 Apple：DIRECT 优先
 🪟 Microsoft：代理优先，CN/CDN 在前置规则直连
 ```
 
 这个默认值的失败模式是可控的：少量未知国内域名可能先经历 CN IP 判断，国外未知流量不会直接落到 DIRECT。
 
-`AI` 分组刻意不把 `🚀 代理` 放在默认入口，而是先进入以 `https://chatgpt.com/cdn-cgi/trace` 为探测目标的 `🤖 AI 故障转移`，再提供 `🤖 AI 自动选择` 与 `🧭 手动选择` 作为显式可选项。故障转移组按顺序优先 `台湾 09 家宽`、`台湾 08 家宽`、其他 MESL 台湾家宽节点，用来服务 ChatGPT、OpenAI、Codex、Claude、Anthropic 等 AI 流量。这样即使主链路临时改到其他节点或后续手动选择 `Pin-Che`，AI 流量仍保持在 AI 专用台湾家宽候选池，除非明确进入 `🤖 AI` 分组调整。
+所有默认组都改为静态 `select`，不再使用 `url-test` 或 `fallback` 作为默认路径。这样默认出口不会因为测速、短暂失败或网络抖动自动换 IP；需要切换时由客户端里手动选择。`🤖 AI` 组通过排序优先 `美国 10 家宽`，然后列出其他全部节点和 `🚀 代理`，所以 AI 流量默认固定，但仍可手动改到任意节点。
 
-`GitHub`、`Developer`、`Streaming`、`Download` 这些关键国外组不包含 `DIRECT` 成员。这是为了避免客户端 `store-selected` 把一次临时手动选择持久化成长期 DIRECT，导致 GitHub、开发下载或国外大文件下载重新绕开代理。需要全局应急直连时，仍可以从 `🚀 代理` 或 `🌐 兜底` 这类更上层组操作。
+`GitHub`、`AI`、`Google`、`Developer`、`Microsoft`、`Telegram`、`Streaming`、`Download` 这些关键国外组不包含 `DIRECT` 成员。这是为了避免客户端 `store-selected` 把一次临时手动选择持久化成长期 DIRECT，导致 GitHub、AI、开发下载或国外大文件下载重新绕开代理。需要全局应急直连时，仍可以从 `🚀 代理` 或 `🌐 兜底` 这类更上层组操作。
 
 ## 5. 多端策略
 
@@ -232,12 +233,12 @@ macOS overlay 只把 NetEase Music、UURemote 这类纯国内进程提前 DIRECT
 
 WeChat / QQ 包名同样不放在所有规则最前，而是放在国外硬钉之后。暂不使用 `tun.exclude-package`，因为它会让流量完全绕过 Mihomo，日志不可见，后续排障成本更高。
 
-### 5.3 iOS Shadowrocket Traffic-Saver
+### 5.3 iOS Shadowrocket
 
-`shadowrocket.conf` 是 iOS 默认配置，目标是 Traffic-Saver：
+`shadowrocket.conf` 是 iOS 默认配置，策略组默认值与 Mihomo 保持一致：
 
 ```text
-🌐 兜底：DIRECT 优先
+🌐 兜底：代理优先
 ⬇️ 下载：代理优先
 已知国外服务：代理优先
 国内域名 / 国内媒体 / CN IP：DIRECT
@@ -245,11 +246,11 @@ WeChat / QQ 包名同样不放在所有规则最前，而是放在国外硬钉�
 
 Shadowrocket 不强行复刻 Mihomo 的 `AND/OR/NOT/SUB-RULE`。渲染器会跳过这些 Mihomo 专用逻辑规则，只复用语法兼容的规则顺序和规则集。
 
-这版关键变化是 iOS 的 Download 不再 DIRECT first。这样手机仍然省流量，但国外已知下载不会被默认直连拖慢或失败。
+这版关键变化是 iOS 不再把 `🌐 兜底` 改成 DIRECT first。手机端仍然通过前置国内规则和 CN IP 规则省流量，但未知国外流量不会因为客户端差异直接漏到 DIRECT。
 
 ### 5.4 iOS Shadowrocket Strict
 
-`shadowrocket-strict.conf` 是备用配置，规则和 Download 顺序与默认 iOS 配置一致，但 `🌐 兜底` 改为代理优先。它适合 iOS 需要更强国外召回时使用，不是默认手机策略。
+`shadowrocket-strict.conf` 是保留给已有订阅 URL 的兼容配置。它的规则和策略组默认值现在与 `shadowrocket.conf` 一致。
 
 ## 6. DNS 和 IPv6
 
@@ -270,7 +271,7 @@ DNS 以稳定国内 DoH 为主，不默认使用 `1.1.1.1` 或 `8.8.8.8` 这类�
 当前验证分四层：
 
 1. `python -m subscription_builder.cli validate`：检查 Mihomo/Shadowrocket 语法、策略组、provider 引用、规则顺序、IPv6 策略、路由期望、provider audit 和 provider drift baseline。
-2. `python -m pytest`：检查渲染器、逻辑规则解析、Shadowrocket Traffic-Saver/Strict、provider 拆分和路由模拟。
+2. `python -m pytest`：检查渲染器、逻辑规则解析、Shadowrocket 静态默认组、provider 拆分和路由模拟。
 3. `verge-mihomo -t`：对 `mihomo-full.yaml` 和 `mihomo-android.yaml` 做真实 Mihomo 配置检查。
 4. GitHub Actions：push 后重新生成并发布远端订阅。
 
@@ -279,9 +280,9 @@ DNS 以稳定国内 DoH 为主，不默认使用 `1.1.1.1` 或 `8.8.8.8` 这类�
 - `GEOIP,CN,DIRECT` 不能变回 `no-resolve`。
 - Mihomo 必须包含 Download/CN 动态拆分。
 - Shadowrocket 不能包含 Mihomo 逻辑规则。
-- iOS Traffic-Saver 的 `🌐 兜底` 必须 DIRECT first。
+- Shadowrocket 的 `🌐 兜底` 必须代理优先。
 - 所有 profile 的 `⬇️ 下载` 必须代理优先。
-- `GitHub`、`Developer`、`Streaming`、`Download` 不得包含 `DIRECT` 成员。
+- `GitHub`、`AI`、`Google`、`Developer`、`Microsoft`、`Telegram`、`Streaming`、`Download` 不得包含 `DIRECT` 成员。
 - Developer hard pins 必须早于 Google / Microsoft / Download 的宽泛规则。
 - split provider 不得出现 domain/IP 类型泄漏。
 - 关键 provider 必须落在 `config/rule-audit-baseline.yaml` 定义的行数范围内，并满足 domain/IP 类型约束。
@@ -305,10 +306,10 @@ legacy 模式下，私有发布密钥未配置完整，GitHub Pages 仍上传 `d
 
 - `mihomo-full.yaml` 规则数、provider 数、策略组数。
 - `mihomo-android.yaml` 规则数、provider 数、策略组数。
-- `shadowrocket.conf` 是否 Traffic-Saver。
-- `shadowrocket-strict.conf` 是否 Strict。
+- `shadowrocket.conf` 是否静态代理优先。
+- `shadowrocket-strict.conf` 是否与默认 Shadowrocket 配置一致。
 - Download 组是否代理优先。
-- GitHub / Developer / Streaming / Download 是否不含 DIRECT。
+- GitHub / AI / Google / Developer / Microsoft / Telegram / Streaming / Download 是否不含 DIRECT。
 - Mihomo 是否含 `AND(download,GEOIP,CN)`。
 
 split-private 模式下，私有发布密钥配置完整，GitHub Pages 改为上传 `public-dist/`，完整订阅上传到 `PRIVATE_BASE_URL` 对应的私有静态目录。至少检查：
@@ -325,10 +326,10 @@ split-private 模式下，私有发布密钥配置完整，GitHub Pages 改为�
 ```text
 macOS: Final 代理优先，Download 代理优先，CN IP 可解析 DIRECT
 Android: 国内 App 强 DIRECT，WeChat / QQ 不抢国外硬钉
-iOS Traffic-Saver: Final DIRECT 优先，Download 代理优先
-iOS Strict: Final 代理优先，Download 代理优先
+iOS Shadowrocket: Final 代理优先，Download 代理优先
+iOS Shadowrocket Strict: 与默认 iOS 配置一致
 Developer: Go / npm / PyPI / Docker / Hugging Face / VS Code / Anaconda / PyTorch / HashiCorp 等显式 Developer
-关键国外组: GitHub / Developer / Streaming / Download 不含 DIRECT
+关键国外组: GitHub / AI / Google / Developer / Microsoft / Telegram / Streaming / Download 不含 DIRECT
 Download: 国内候选 DIRECT，国外候选 Download 代理组
 IPv6: 关闭
 发布: GitHub Actions 成功；legacy 模式下旧订阅 URL 不断，split-private 模式下公开 Pages 只含规则、私有 URL 可拉取完整订阅

@@ -1,140 +1,100 @@
 groups:
   - key: PROXY
     type: select
+    nodes_first: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2
     members:
-      - "@FALLBACK"
-      - "@AUTO"
-      - "@MANUAL"
       - DIRECT
-    include_nodes: all
-  - key: FALLBACK
-    type: fallback
-    include_nodes: true
-    url: https://www.gstatic.com/generate_204
-    interval: 300
-    timeout: 3000
-  - key: AUTO
-    type: url-test
-    include_nodes: true
-    url: https://www.gstatic.com/generate_204
-    interval: 300
-    tolerance: 50
-    timeout: 3000
-  - key: MANUAL
-    type: select
-    include_nodes: all
   - key: RuleUpdate
     type: select
     members:
       - "@PROXY"
-      - "@FALLBACK"
       - DIRECT
   - key: GitHub
     type: select
     members:
       - "@PROXY"
-      - "@FALLBACK"
-      - "@AUTO"
-      - "@MANUAL"
-    include_nodes: true
-  - key: AI_FALLBACK
-    type: fallback
     include_nodes:
-      source_ids:
-        - mesl
-      name_contains:
-        - 家宽
-      name_regex: 台湾
       preferred_name_contains:
-        - 台湾 09 家宽
-        - 台湾 08 家宽
-      fallback_include_nodes: true
-    url: https://chatgpt.com/cdn-cgi/trace
-    interval: 300
-    timeout: 5000
-  - key: AI_AUTO
-    type: url-test
-    include_nodes:
-      source_ids:
-        - mesl
-      name_contains:
-        - 家宽
-      name_regex: 台湾
-      preferred_name_contains:
-        - 台湾 09 家宽
-        - 台湾 08 家宽
-      fallback_include_nodes: true
-    url: https://chatgpt.com/cdn-cgi/trace
-    interval: 300
-    tolerance: 50
-    timeout: 5000
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2
   - key: AI
     type: select
+    nodes_first: true
+    include_nodes:
+      preferred_name_contains:
+        - 美国 10 家宽
+        - 美国家宽10
+        - 美国家宽 10
+        - 美国 10
     members:
-      - "@AI_FALLBACK"
-      - "@AI_AUTO"
-      - "@MANUAL"
+      - "@PROXY"
   - key: Google
     type: select
     members:
       - "@PROXY"
-      - "@FALLBACK"
-      - "@AUTO"
-      - "@MANUAL"
-    include_nodes: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2
   - key: Developer
     type: select
     members:
       - "@PROXY"
-      - "@FALLBACK"
-      - "@AUTO"
-      - "@MANUAL"
-    include_nodes: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2
   - key: Apple
     type: select
     members:
       - DIRECT
       - "@PROXY"
-      - "@FALLBACK"
-      - "@AUTO"
-    include_nodes: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2
   - key: Microsoft
     type: select
     members:
       - "@PROXY"
-      - "@FALLBACK"
-      - DIRECT
-      - "@AUTO"
-    include_nodes: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2
   - key: Telegram
     type: select
     members:
       - "@PROXY"
-      - "@FALLBACK"
-      - "@AUTO"
-      - "@MANUAL"
-    include_nodes: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2
   - key: Streaming
     type: select
     members:
       - "@PROXY"
-      - "@FALLBACK"
-      - "@AUTO"
-      - "@MANUAL"
-    include_nodes: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2
   - key: Download
     type: select
     members:
-      - "@FALLBACK"
       - "@PROXY"
-      - "@AUTO"
-      - "@MANUAL"
-    include_nodes: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2
   - key: Final
     type: select
     members:
       - "@PROXY"
-      - "@FALLBACK"
-      - "@AUTO"
       - DIRECT
-    include_nodes: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2-260.97
+        - Suehn-Suehn2

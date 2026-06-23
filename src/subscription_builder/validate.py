@@ -23,7 +23,11 @@ SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_FIRST = [
 ]
 SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_MEMBER = [
     "GitHub",
+    "AI",
+    "Google",
     "Developer",
+    "Microsoft",
+    "Telegram",
     "Streaming",
     "Download",
 ]
@@ -313,6 +317,7 @@ def _shadowrocket_groups(lines: list[str]) -> dict[str, list[str]]:
 
 
 def validate_shadowrocket_config(config_path: Path, *, traffic_saver: bool = True) -> None:
+    del traffic_saver
     lines = config_path.read_text(encoding="utf-8").splitlines()
     for section in ("[General]", "[Proxy]", "[Proxy Group]", "[Rule]"):
         if section not in lines:
@@ -342,10 +347,8 @@ def validate_shadowrocket_config(config_path: Path, *, traffic_saver: bool = Tru
     final_members = groups.get(final_group_name)
     if not final_members:
         raise ValueError(f"Missing required Shadowrocket proxy group: {final_group_name}")
-    if traffic_saver and final_members[0] != "DIRECT":
-        raise ValueError(f"Traffic-Saver Shadowrocket Final group must default to DIRECT: {final_group_name}")
-    if not traffic_saver and final_members[0] == "DIRECT":
-        raise ValueError(f"Strict Shadowrocket Final group must not default to DIRECT: {final_group_name}")
+    if final_members[0] == "DIRECT":
+        raise ValueError(f"Shadowrocket Final group must not default to DIRECT: {final_group_name}")
 
     download_group_name = GROUP_LABELS["Download"]
     download_members = groups.get(download_group_name)

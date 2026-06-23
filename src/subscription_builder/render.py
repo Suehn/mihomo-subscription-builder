@@ -16,14 +16,9 @@ from .rules import BuiltRule
 
 
 GROUP_LABELS = {
-    "AUTO": "⚡ 自动选择",
-    "FALLBACK": "🔁 故障转移",
-    "MANUAL": "🧭 手动选择",
     "PROXY": "🚀 代理",
     "RuleUpdate": "🔄 规则更新",
     "AI": "🤖 AI",
-    "AI_AUTO": "🤖 AI 自动选择",
-    "AI_FALLBACK": "🤖 AI 故障转移",
     "GitHub": "💻 GitHub",
     "Google": "🔎 Google",
     "Developer": "🛠 Developer",
@@ -342,28 +337,12 @@ def _build_mihomo_groups(project_root: Path, nodes: list[ProxyNode]) -> list[dic
     return groups
 
 
-SHADOWROCKET_TRAFFIC_SAVER_FIRST_MEMBERS = {
-    "Final": ["DIRECT"],
-}
-
-
-def _shadowrocket_traffic_saver_members(group_name: str, members: list[str]) -> list[str]:
-    first_members = SHADOWROCKET_TRAFFIC_SAVER_FIRST_MEMBERS.get(group_name)
-    if not first_members:
-        return members
-    remaining = [member for member in members if member not in first_members]
-    return [*first_members, *remaining]
-
-
 def _build_shadowrocket_groups(project_root: Path, nodes: list[ProxyNode], *, traffic_saver: bool) -> list[dict[str, object]]:
     groups: list[dict[str, object]] = []
     for group in _build_mihomo_groups(project_root, nodes):
         if group["name"] == _g("RuleUpdate"):
             continue
-        group_key = next((key for key, label in GROUP_LABELS.items() if label == group["name"]), "")
         members = [str(item) for item in group.get("proxies", [])]
-        if traffic_saver:
-            members = _shadowrocket_traffic_saver_members(group_key, members)
         shadow_group: dict[str, object] = {
             "name": group["name"],
             "type": group["type"],

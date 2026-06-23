@@ -20,7 +20,7 @@ through the private `UPSTREAM_SUB_URL` secret.
 
 - Pulls the upstream subscription from `UPSTREAM_SUB_URL`
 - Optionally merges `MESL_SUB_URL` home broadband nodes whose names contain
-  `家宽` for AI-first routing and manual selection
+  `家宽` for static AI defaults and manual selection in every group
 - Optionally merges a secondary `PINCHE_SUB_URL` subscription as manual-only
   nodes
 - Decodes Base64 subscriptions automatically
@@ -42,15 +42,15 @@ The project is designed around one primary objective:
 
 > Domestic traffic should be direct and unnoticeable first. On that foundation,
 > known foreign services should be explicitly captured, and unknown foreign
-> traffic should still have a proxy fallback.
+> traffic should still have a proxy path.
 
 The resulting failure mode is intentional. A high-confidence Chinese app,
 Chinese media service, Chinese mirror, Chinese domain, or Chinese IP should be
 routed DIRECT. GitHub, AI, Google, Telegram, developer infrastructure, Microsoft
 global services, and streaming should be routed to named proxy groups before
-they can be swallowed by broad domestic or download rules. Final fallback stays
-proxy-first on Mihomo, but CN IP fallback is allowed to resolve so unknown
-Chinese domains can still land on DIRECT.
+they can be swallowed by broad domestic or download rules. The final group stays
+proxy-first on every generated client, but CN IP fallback is allowed to resolve
+so unknown Chinese domains can still land on DIRECT before the final group.
 
 This project is intentionally a thin subscription assembler, not a
 hand-maintained full rulebase. It follows mature rule sources and only keeps a
@@ -96,7 +96,7 @@ The Mihomo profile follows this high-level order:
    named groups.
 7. Streaming, domestic non-IP, `GEOSITE,cn,DIRECT`, developer-global, dynamic
    download split, global, `geolocation-!cn`, IP rules, `GEOIP,CN,DIRECT`, final
-   fallback.
+   group.
 
 The key tail rule is:
 
@@ -121,48 +121,45 @@ Download is split before the broad download group:
 
 This means domestic download candidates can still go DIRECT after CN IP
 resolution, while non-CN download candidates use the proxy-first download group.
-Shadowrocket does not render Mihomo logical rules, so iOS keeps simpler
-Traffic-Saver semantics and relies on explicit pins plus DIRECT final fallback.
+Shadowrocket does not render Mihomo logical rules, so iOS keeps simpler rule
+semantics but uses the same proxy-first static group defaults as Mihomo.
 
 ### 3. Proxy Group Defaults
 
 Mihomo and Shadowrocket share the same group names where possible:
 
-- `🚀 代理`: primary proxy selector, first group for easy client operation.
+- `🚀 代理`: primary proxy selector, first group for easy client operation. It
+  defaults to the first node whose name contains `Suehn-Suehn2-260.97`, then
+  `Suehn-Suehn2`, and keeps `DIRECT` as an explicit manual escape hatch.
 - `💻 GitHub`, `🤖 AI`, `🔎 Google`, `🛠 Developer`, `✈️ Telegram`,
-  `📺 流媒体`: explicit foreign service groups. GitHub, Developer, Streaming,
-  and Download intentionally do not include `DIRECT`, which avoids persistent
-  client-side selected-state accidentally turning them into long-term direct
-  groups.
+  `📺 流媒体`: explicit foreign service groups. They expose all nodes for manual
+  selection but do not include `DIRECT`, which avoids persistent client-side
+  selected-state accidentally turning them into long-term direct groups.
 - `🍎 Apple`: defaults DIRECT because normal Apple system services, App Store,
   iCloud, push, and updates are commonly domestic-friendly. Apple Intelligence is
   routed to `🤖 AI` instead.
 - `🪟 Microsoft`: defaults proxy-first for global Microsoft services, while
   Microsoft CN/CDN rules are direct before the group.
-- `⬇️ 下载`: proxy/fallback first on every generated profile. Domestic download
+- `⬇️ 下载`: proxy-first on every generated profile. Domestic download
   candidates are handled by earlier domestic mirrors and Mihomo's
   `AND(download,GEOIP,CN)` split, not by making the whole download group DIRECT.
-- `🌐 兜底`: Mihomo defaults proxy-first; iOS defaults DIRECT first.
-- `🤖 AI`: defaults to `🤖 AI 故障转移`, then offers `🤖 AI 自动选择` and
-  `🧭 手动选择`. The dedicated AI groups are tested against
-  `https://chatgpt.com/cdn-cgi/trace` rather than inheriting the general
-  `🚀 代理` health check. When MESL home broadband nodes are present, the AI
-  fallback order is `台湾 09 家宽`, `台湾 08 家宽`, then the other imported
-  Taiwan home broadband nodes. If no Taiwan home broadband nodes are present,
-  the group falls back to the
-  primary default nodes so the config remains usable.
+- `🌐 兜底`: defaults proxy-first on Mihomo, Android Mihomo, and Shadowrocket.
+- `🤖 AI`: a static selector, not a health-check or failover group. It defaults
+  to the first node whose name contains `美国 10 家宽`, with alternate name
+  tokens for compact naming, then exposes all other nodes and `🚀 代理` for
+  manual selection. ChatGPT, OpenAI, Codex, Claude, Anthropic, Gemini, and Apple
+  Intelligence rules route here.
 
 Optional secondary node sources are explicit:
 
 - `MESL_SUB_URL` is marked `manual_only` but filtered to names containing
-  `家宽`. Those nodes are manually selectable and are also used by the dedicated
-  AI groups. They are excluded from the ordinary `🔁 故障转移` and `⚡ 自动选择`
-  defaults, so non-AI routing keeps the existing default chain. If the live MESL
+  `家宽`. Those nodes are rendered into every static select group for manual
+  selection. The AI group prefers `美国 10 家宽` when present. If the live MESL
   endpoint rate-limits a build, `MESL_SUB_TEXT` can provide a private cached
   home-node YAML fallback without committing node data.
 - `PINCHE_SUB_URL` remains manual-only. Those nodes are rendered so they can be
-  selected manually, but they are excluded from `🔁 故障转移`, `⚡ 自动选择`,
-  `🤖 AI 自动选择`, and `🤖 AI 故障转移` defaults.
+  selected manually from the static select groups, without becoming a separate
+  automatic default path.
 
 Traffic quota and expiry metadata are written to `dist/node-sources.json` and
 also emitted as comments near the top of generated configs.
@@ -210,12 +207,13 @@ that can open third-party foreign links.
 
 ### iOS Shadowrocket
 
-`dist/shadowrocket.conf` is intentionally Traffic-Saver first:
+`dist/shadowrocket.conf` uses the same static group defaults as the Mihomo
+profiles:
 
 - Domestic domains, domestic media, domestic mirrors, and CN IP rules go DIRECT.
 - `⬇️ 下载` defaults proxy-first so known foreign software/object-storage downloads
   are not forced to direct.
-- `🌐 兜底` defaults DIRECT first.
+- `🌐 兜底` defaults proxy-first, matching the desktop profile.
 - GitHub, AI, Google, Developer, Telegram, Microsoft, and streaming groups still
   default proxy-first.
 
@@ -226,14 +224,12 @@ mirrored Shadowrocket rule files, and avoids pretending that iOS can exactly
 match Android package-level behavior.
 
 If proxy traffic is expensive or the phone is mostly used for domestic apps,
-Shadowrocket should keep the generated Traffic-Saver behavior. If a specific
-foreign unknown site fails on iOS, add a small explicit pin instead of changing
-the whole iOS `FINAL` back to proxy-first.
+add small explicit DIRECT pins for those domains instead of making the whole iOS
+`FINAL` default direct.
 
-`dist/shadowrocket-strict.conf` is generated as a fallback profile. It keeps the
-same rules and proxy-first download group, but makes `🌐 兜底` proxy-first. Use it
-only when iOS needs desktop-like foreign recall; the default phone profile remains
-Traffic-Saver.
+`dist/shadowrocket-strict.conf` is still generated as a compatibility profile for
+clients that already subscribe to it. Its group defaults now match
+`shadowrocket.conf`.
 
 ## Update And Maintenance Model
 
@@ -280,9 +276,9 @@ push, then update the client profile from the published URL.
   empty, unexpectedly tiny, unexpectedly huge, or type-mismatched critical rule
   outputs before publishing.
 
-`python -m pytest` covers renderer behavior, local rule source handling,
-Traffic-Saver Shadowrocket group defaults, overlay insertion order, and route
-expectation simulation.
+`python -m pytest` covers renderer behavior, local rule source handling, static
+Shadowrocket group defaults, overlay insertion order, and route expectation
+simulation.
 
 `python -m subscription_builder.cli smoke-runtime` starts temporary Mihomo
 instances on high local ports, waits for providers to load, and requests
@@ -356,17 +352,15 @@ Create the required repository secret:
 
 - `UPSTREAM_SUB_URL`
 - `MESL_SUB_URL`: optional MESL subscription. When present, only nodes whose
-  names contain `家宽` are imported. They remain manual-only for general routing,
-  but `🤖 AI 故障转移` / `🤖 AI 自动选择` use them with `台湾 09 家宽` before
-  `台湾 08 家宽`, followed by the other imported Taiwan home broadband nodes.
-  Other imported MESL home broadband nodes remain available for manual
-  selection, but are not part of the default AI failover chain.
+  names contain `家宽` are imported. They remain manual-only as source metadata,
+  but static select groups expose them for manual choice. `🤖 AI` prefers
+  `美国 10 家宽` when present, then keeps the rest of the nodes available.
 - `MESL_SUB_TEXT`: optional private cached MESL home-node YAML fallback. Use it
   when the live MESL endpoint rate-limits GitHub Actions; it must stay in
   GitHub Secrets and must not be committed.
 - `PINCHE_SUB_URL`: optional secondary subscription. When present, its nodes are
-  included in Mihomo as manual-only `Pin-Che` nodes and excluded from default
-  routing groups. Its node `server` entries are also covered by exact
+  included in Mihomo as manual-only `Pin-Che` nodes and exposed in static select
+  groups for manual choice. Its node `server` entries are also covered by exact
   self-DIRECT rules in the private generated configs.
 
 To enable private full-subscription delivery without breaking URL-based updates,
@@ -400,8 +394,8 @@ Shadowrocket imports VLESS/Reality subscriptions reliably from a remote
 subscription URL, but local `[Proxy]` serialization varies between app builds.
 This project therefore publishes both:
 
-- `shadowrocket.conf` for Traffic-Saver routing policy and groups
-- `shadowrocket-strict.conf` for a proxy-first iOS final fallback variant
+- `shadowrocket.conf` for static proxy-first final routing policy and groups
+- `shadowrocket-strict.conf` for clients that already subscribe to the strict URL
 - `shadowrocket-subscription.txt` as the canonical node subscription fallback
 
 If a future Shadowrocket build rejects the generated local VLESS line inside

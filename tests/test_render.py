@@ -192,22 +192,27 @@ def test_mihomo_uses_domestic_doh_and_filters_local_wpad(tmp_path: Path) -> None
     assert config["rules"][0] == "DOMAIN,wpad,REJECT"
 
 
-def test_mihomo_download_and_fallback_groups_prefer_proxy(tmp_path: Path) -> None:
+def test_mihomo_groups_use_static_defaults_without_auto_failover(tmp_path: Path) -> None:
     config = _render_config(tmp_path)
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
 
     assert config["proxy-groups"][0]["name"] == "🚀 代理"
-    assert groups["🤖 AI"] == ["🤖 AI 故障转移", "🤖 AI 自动选择", "🧭 手动选择"]
-    assert groups["🤖 AI 自动选择"] == ["node-a"]
-    assert groups["🤖 AI 故障转移"] == ["node-a"]
-    assert "🚀 代理" not in groups["🤖 AI"]
-    assert groups["🪟 Microsoft"][:3] == ["🚀 代理", "🔁 故障转移", "DIRECT"]
-    assert groups["🔎 Google"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
-    assert groups["💻 GitHub"][:4] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择", "🧭 手动选择"]
-    assert groups["🛠 Developer"][:4] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择", "🧭 手动选择"]
-    assert groups["⬇️ 下载"][:3] == ["🔁 故障转移", "🚀 代理", "⚡ 自动选择"]
-    assert groups["🌐 兜底"][:3] == ["🚀 代理", "🔁 故障转移", "⚡ 自动选择"]
-    for group_name in ["💻 GitHub", "🛠 Developer", "📺 流媒体", "⬇️ 下载"]:
+    assert all(group["type"] == "select" for group in config["proxy-groups"])
+    assert "🔁 故障转移" not in groups
+    assert "⚡ 自动选择" not in groups
+    assert "🧭 手动选择" not in groups
+    assert "🤖 AI 故障转移" not in groups
+    assert "🤖 AI 自动选择" not in groups
+    assert groups["🚀 代理"] == ["node-a", "DIRECT"]
+    assert groups["🤖 AI"] == ["node-a", "🚀 代理"]
+    assert groups["🪟 Microsoft"] == ["🚀 代理", "node-a"]
+    assert groups["🔎 Google"] == ["🚀 代理", "node-a"]
+    assert groups["💻 GitHub"] == ["🚀 代理", "node-a"]
+    assert groups["🛠 Developer"] == ["🚀 代理", "node-a"]
+    assert groups["⬇️ 下载"] == ["🚀 代理", "node-a"]
+    assert groups["🌐 兜底"] == ["🚀 代理", "DIRECT", "node-a"]
+    assert groups["🍎 Apple"] == ["DIRECT", "🚀 代理", "node-a"]
+    for group_name in ["💻 GitHub", "🤖 AI", "🔎 Google", "🛠 Developer", "🪟 Microsoft", "✈️ Telegram", "📺 流媒体", "⬇️ 下载"]:
         assert "DIRECT" not in groups[group_name]
 
 
@@ -362,26 +367,24 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     assert "https://example.test/sub/shadowrocket-subscription.txt" not in text
     assert "1.1.1.1" not in text
     assert "8.8.8.8" not in text
-    assert group_lines[0] == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
-    assert next(line for line in lines if line.startswith("🚀 代理 = ")) == "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a"
-    assert "🔁 故障转移 = fallback,node-a,url=https://www.gstatic.com/generate_204,interval=300" in lines
-    assert "🤖 AI 自动选择 = url-test,node-a,url=https://chatgpt.com/cdn-cgi/trace,interval=300,tolerance=50" in lines
-    assert "🤖 AI 故障转移 = fallback,node-a,url=https://chatgpt.com/cdn-cgi/trace,interval=300" in lines
-    assert "🤖 AI = select,🤖 AI 故障转移,🤖 AI 自动选择,🧭 手动选择" in lines
-    assert "🔎 Google = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
-    assert "💻 GitHub = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
-    assert "🛠 Developer = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
-    assert "📺 流媒体 = select,🚀 代理,🔁 故障转移,⚡ 自动选择,🧭 手动选择,node-a" in lines
-    assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,🧭 手动选择,node-a" in lines
-    assert "🌐 兜底 = select,DIRECT,🚀 代理,🔁 故障转移,⚡ 自动选择,node-a" in lines
+    assert group_lines[0] == "🚀 代理 = select,node-a,DIRECT"
+    assert next(line for line in lines if line.startswith("🚀 代理 = ")) == "🚀 代理 = select,node-a,DIRECT"
+    assert not any("fallback" in line or "url-test" in line for line in group_lines)
+    assert "🤖 AI = select,node-a,🚀 代理" in lines
+    assert "🔎 Google = select,🚀 代理,node-a" in lines
+    assert "💻 GitHub = select,🚀 代理,node-a" in lines
+    assert "🛠 Developer = select,🚀 代理,node-a" in lines
+    assert "📺 流媒体 = select,🚀 代理,node-a" in lines
+    assert "⬇️ 下载 = select,🚀 代理,node-a" in lines
+    assert "🌐 兜底 = select,🚀 代理,DIRECT,node-a" in lines
 
     strict_text = _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf", traffic_saver=False)
     strict_lines = strict_text.splitlines()
-    assert "⬇️ 下载 = select,🔁 故障转移,🚀 代理,⚡ 自动选择,🧭 手动选择,node-a" in strict_lines
-    assert "🌐 兜底 = select,🚀 代理,🔁 故障转移,⚡ 自动选择,DIRECT,node-a" in strict_lines
+    assert "⬇️ 下载 = select,🚀 代理,node-a" in strict_lines
+    assert "🌐 兜底 = select,🚀 代理,DIRECT,node-a" in strict_lines
 
 
-def test_manual_only_nodes_are_visible_in_proxy_but_excluded_from_automatic_groups(tmp_path: Path) -> None:
+def test_manual_only_nodes_are_visible_in_static_select_groups(tmp_path: Path) -> None:
     primary_node = ProxyNode(
         name="node-a",
         type="vless",
@@ -437,15 +440,13 @@ def test_manual_only_nodes_are_visible_in_proxy_but_excluded_from_automatic_grou
     rules = config["rules"]
 
     assert [proxy["name"] for proxy in config["proxies"]] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
-    assert groups["🚀 代理"][:4] == ["🔁 故障转移", "⚡ 自动选择", "🧭 手动选择", "DIRECT"]
-    assert groups["🚀 代理"][-2:] == ["Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
-    assert "Pin-Che · pinche-hy2" not in groups["🔁 故障转移"]
-    assert "Pin-Che · pinche-cdn" not in groups["⚡ 自动选择"]
-    assert groups["🤖 AI"] == ["🤖 AI 故障转移", "🤖 AI 自动选择", "🧭 手动选择"]
-    assert groups["🤖 AI 自动选择"] == ["node-a"]
-    assert groups["🤖 AI 故障转移"] == ["node-a"]
-    assert "Pin-Che · pinche-cdn" in groups["🧭 手动选择"]
-    assert "Pin-Che · pinche-hy2" in groups["🧭 手动选择"]
+    assert groups["🚀 代理"] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2", "DIRECT"]
+    assert groups["🤖 AI"] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2", "🚀 代理"]
+    assert groups["💻 GitHub"] == ["🚀 代理", "node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
+    assert groups["⬇️ 下载"] == ["🚀 代理", "node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
+    assert "🔁 故障转移" not in groups
+    assert "⚡ 自动选择" not in groups
+    assert "🧭 手动选择" not in groups
     assert "Pin-Che: nodes=2, policy=manual_only, traffic=0.00B / 4.88TB, expires=2027-05-16" in (
         tmp_path / "mihomo-full.yaml"
     ).read_text(encoding="utf-8")
@@ -459,17 +460,18 @@ def test_manual_only_nodes_are_visible_in_proxy_but_excluded_from_automatic_grou
     shadow_lines = shadow_text.splitlines()
     assert "Pin-Che · pinche-cdn=vless" in shadow_text
     assert "Pin-Che · pinche-hy2" not in shadow_text
-    assert "🚀 代理 = select,🔁 故障转移,⚡ 自动选择,🧭 手动选择,DIRECT,node-a,Pin-Che · pinche-cdn" in shadow_text
-    assert "🤖 AI = select,🤖 AI 故障转移,🤖 AI 自动选择,🧭 手动选择" in shadow_text
+    assert "🚀 代理 = select,node-a,Pin-Che · pinche-cdn,DIRECT" in shadow_text
+    assert "🤖 AI = select,node-a,Pin-Che · pinche-cdn,🚀 代理" in shadow_text
+    assert "⬇️ 下载 = select,🚀 代理,node-a,Pin-Che · pinche-cdn" in shadow_text
     assert "DOMAIN,proxy.example.test,DIRECT" in shadow_lines
     assert "IP-CIDR,104.18.82.177/32,DIRECT" in shadow_lines
     assert "DOMAIN,edge.example.test,DIRECT" not in shadow_lines
     assert "DOMAIN,zhuijumi.tv,DIRECT" not in shadow_lines
 
 
-def test_ai_groups_prefer_mesl_taiwan_home_nodes_across_clients(tmp_path: Path) -> None:
+def test_ai_group_prefers_us_home_node_but_all_nodes_are_selectable_across_clients(tmp_path: Path) -> None:
     primary_node = ProxyNode(
-        name="node-a",
+        name="Suehn-Suehn2-260.97GB",
         type="vless",
         server="proxy.example.test",
         port=443,
@@ -492,10 +494,10 @@ def test_ai_groups_prefer_mesl_taiwan_home_nodes_across_clients(tmp_path: Path) 
         uuid="00000000-0000-4000-8000-000000000008",
         tls=True,
     ).apply_source(source_id="mesl", source_label="MESL", group_policy="manual_only")
-    mesl_home_09 = ProxyNode(
-        name="台湾 09 家宽",
+    mesl_home_us10 = ProxyNode(
+        name="美国 10 家宽",
         type="vless",
-        server="tw09.example.test",
+        server="us10.example.test",
         port=443,
         uuid="00000000-0000-4000-8000-000000000009",
         tls=True,
@@ -508,7 +510,7 @@ def test_ai_groups_prefer_mesl_taiwan_home_nodes_across_clients(tmp_path: Path) 
         uuid="00000000-0000-4000-8000-000000000010",
         tls=True,
     ).apply_source(source_id="mesl", source_label="MESL", group_policy="manual_only")
-    nodes = [primary_node, mesl_home_07, mesl_home_jp, mesl_home_08, mesl_home_09]
+    nodes = [primary_node, mesl_home_07, mesl_home_jp, mesl_home_08, mesl_home_us10]
 
     render_mihomo(
         project_root=Path.cwd(),
@@ -519,38 +521,35 @@ def test_ai_groups_prefer_mesl_taiwan_home_nodes_across_clients(tmp_path: Path) 
     )
     config = yaml.safe_load((tmp_path / "mihomo-full.yaml").read_text(encoding="utf-8"))
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
-    expected_taiwan_home_order = [
-        "MESL · 台湾 09 家宽",
-        "MESL · 台湾 08 家宽",
+    expected_all_nodes = [
+        "Suehn-Suehn2-260.97GB",
         "MESL · 台湾 07 家宽",
+        "MESL · 日本 01 家宽",
+        "MESL · 台湾 08 家宽",
+        "MESL · 美国 10 家宽",
     ]
-    expected_all_home_nodes = [*expected_taiwan_home_order, "MESL · 日本 01 家宽"]
 
-    assert groups["🤖 AI"] == ["🤖 AI 故障转移", "🤖 AI 自动选择", "🧭 手动选择"]
-    assert groups["🤖 AI 故障转移"] == expected_taiwan_home_order
-    assert groups["🤖 AI 自动选择"] == expected_taiwan_home_order
-    assert "MESL · 日本 01 家宽" not in groups["🤖 AI 故障转移"]
-    assert "MESL · 日本 01 家宽" not in groups["🤖 AI 自动选择"]
-    assert all(node not in groups["🔁 故障转移"] for node in expected_all_home_nodes)
-    assert all(node not in groups["⚡ 自动选择"] for node in expected_all_home_nodes)
-    assert all(node in groups["🧭 手动选择"] for node in expected_all_home_nodes)
+    assert groups["🚀 代理"] == [*expected_all_nodes, "DIRECT"]
+    assert groups["🤖 AI"] == [
+        "MESL · 美国 10 家宽",
+        "Suehn-Suehn2-260.97GB",
+        "MESL · 台湾 07 家宽",
+        "MESL · 日本 01 家宽",
+        "MESL · 台湾 08 家宽",
+        "🚀 代理",
+    ]
+    assert groups["💻 GitHub"] == ["🚀 代理", *expected_all_nodes]
+    assert groups["⬇️ 下载"] == ["🚀 代理", *expected_all_nodes]
+    assert "🔁 故障转移" not in groups
+    assert "⚡ 自动选择" not in groups
 
     shadow_text = _render_shadowrocket(tmp_path, nodes=nodes)
     shadow_lines = shadow_text.splitlines()
-    shadow_manual_group = next(line for line in shadow_lines if line.startswith("🧭 手动选择 = "))
-    assert all(node in shadow_manual_group for node in expected_all_home_nodes)
+    shadow_ai_group = next(line for line in shadow_lines if line.startswith("🤖 AI = "))
+    assert shadow_ai_group.startswith("🤖 AI = select,MESL · 美国 10 家宽,Suehn-Suehn2-260.97GB")
+    assert all(node in shadow_ai_group for node in expected_all_nodes)
     assert "MESL · 日本 01 家宽=vless" in shadow_text
-
-    expected_csv = ",".join(expected_taiwan_home_order)
-    assert (
-        f"🤖 AI 故障转移 = fallback,{expected_csv},url=https://chatgpt.com/cdn-cgi/trace,interval=300"
-        in shadow_text
-    )
-    assert (
-        f"🤖 AI 自动选择 = url-test,{expected_csv},url=https://chatgpt.com/cdn-cgi/trace,interval=300,tolerance=50"
-        in shadow_text
-    )
-    assert "🤖 AI = select,🤖 AI 故障转移,🤖 AI 自动选择,🧭 手动选择" in shadow_text
+    assert not any("fallback" in line or "url-test" in line for line in shadow_lines)
 
 
 def test_shadowrocket_includes_new_sukkaw_layers_and_passes_policy_validation(tmp_path: Path) -> None:
