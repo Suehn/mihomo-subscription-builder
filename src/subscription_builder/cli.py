@@ -1,253 +1,83 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import os
-import subprocess
+from pathlib import Path
 import sys
 
-from .config import ProjectConfig, load_project_config
-from .models import ProxyNode
-from .nodes import (
-    NodeSourceResult,
-    fetch_and_parse_node_source,
-    parse_node_source_text,
-    read_nodes_json,
-    write_node_source_audit,
-    write_nodes_json,
-    write_shadowrocket_uri_artifacts,
+from .pipeline import (
+    BuildOptions,
+    PublicPagesOptions,
+    RuntimeSmokeOptions,
+    ValidateOptions,
+    build_all,
+    prepare_public_pages_artifact,
+    smoke_runtime,
+    validate_outputs,
 )
-from .render import prepare_public_pages, render_index, render_mihomo, render_shadowrocket
-from .route_expectations import validate_route_expectations
-from .runtime_smoke import run_mihomo_runtime_smoke
-from .rules import build_rules, write_rule_audit, write_rule_manifest
-from .validate import validate_mihomo_config, validate_rule_audit, validate_shadowrocket_config
-
-
-DEFAULT_MIhOMO_BIN = Path("/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo")
-
-
-def _project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def _load_context(args: argparse.Namespace) -> tuple[Path, ProjectConfig, Path, Path]:
-    project_root = Path(args.project_root).resolve() if args.project_root else _project_root()
-    config_path = Path(args.config).resolve() if args.config else project_root / "sources" / "upstream.yaml"
-    output_root = project_root / "dist"
-    build_root = project_root / "build"
-    output_root.mkdir(parents=True, exist_ok=True)
-    build_root.mkdir(parents=True, exist_ok=True)
-    return project_root, load_project_config(config_path), output_root, build_root
-
-
-def _fetch_configured_nodes(args: argparse.Namespace, config: ProjectConfig) -> tuple[list[ProxyNode], list[NodeSourceResult]]:
-    nodes: list[ProxyNode] = []
-    source_results: list[NodeSourceResult] = []
-    primary_source_id = config.node_sources[0].source_id
-    for source in config.node_sources:
-        explicit_url = args.upstream_url if source.source_id == primary_source_id else None
-        source_url = explicit_url or os.environ.get(source.env_var, "")
-        source_text = os.environ.get(source.text_env_var, "") if source.text_env_var else ""
-        if not source_url and not source_text:
-            if source.required:
-                raise ValueError(
-                    f"Missing upstream subscription URL. Set {source.env_var} or pass --upstream-url."
-                )
-            continue
-
-        fetch_error: RuntimeError | None = None
-        result: NodeSourceResult | None = None
-        if source_url:
-            try:
-                result = fetch_and_parse_node_source(
-                    url=source_url,
-                    user_agent=config.user_agent,
-                    source_id=source.source_id,
-                    label=source.label,
-                    group_policy=source.group_policy,
-                    include_name_contains=source.include_name_contains,
-                    include_name_regex=source.include_name_regex,
-                    metadata=source.metadata,
-                )
-            except RuntimeError as exc:
-                fetch_error = exc
-
-        if result is None and source_text:
-            metadata = {**source.metadata}
-            if fetch_error is not None:
-                metadata["fetch_error"] = str(fetch_error)
-                metadata["fallback"] = source.text_env_var
-                print(
-                    f"Warning: optional node source {source.source_id!r} URL fetch failed; "
-                    f"using {source.text_env_var} fallback: {fetch_error}",
-                    file=sys.stderr,
-                )
-            result = parse_node_source_text(
-                raw_text=source_text,
-                source_id=source.source_id,
-                label=source.label,
-                group_policy=source.group_policy,
-                include_name_contains=source.include_name_contains,
-                include_name_regex=source.include_name_regex,
-                metadata=metadata,
-            )
-
-        if result is None and fetch_error is not None:
-            if source.required:
-                raise fetch_error
-            print(f"Warning: optional node source {source.source_id!r} skipped: {fetch_error}", file=sys.stderr)
-            source_results.append(
-                NodeSourceResult(
-                    source_id=source.source_id,
-                    label=source.label,
-                    group_policy=source.group_policy,
-                    nodes=[],
-                    userinfo={},
-                    metadata={**source.metadata, "fetch_error": str(fetch_error)},
-                )
-            )
-            continue
-        if result is None:
-            continue
-        nodes.extend(result.nodes)
-        source_results.append(result)
-    return nodes, source_results
+from .publish import select_publish_mode, write_github_env_lines
 
 
 def _build_all(args: argparse.Namespace) -> int:
-    project_root, config, output_root, build_root = _load_context(args)
-    public_base_url = config.resolve_public_base_url(args.public_base_url)
-    private_base_url = config.resolve_private_base_url(args.private_base_url, public_base_url=public_base_url)
-    if args.use_cached_nodes:
-        nodes = read_nodes_json(build_root / "nodes.json")
-        source_results: list[NodeSourceResult] = []
-    else:
-        nodes, source_results = _fetch_configured_nodes(args, config)
-        write_nodes_json(nodes, build_root / "nodes.json")
-    write_shadowrocket_uri_artifacts(nodes, output_root)
-    source_audit = write_node_source_audit(
-        nodes=nodes,
-        source_results=source_results,
-        output_path=build_root / "node-sources.json",
+    build_all(
+        BuildOptions(
+            project_root=Path(args.project_root).resolve() if args.project_root else None,
+            config_path=Path(args.config).resolve() if args.config else None,
+            upstream_url=args.upstream_url,
+            public_base_url=args.public_base_url,
+            private_base_url=args.private_base_url,
+            use_cached_nodes=args.use_cached_nodes,
+        )
     )
-    write_node_source_audit(
-        nodes=nodes,
-        source_results=source_results,
-        output_path=output_root / "node-sources.json",
-    )
-    manifest = build_rules(config, output_root, project_root=project_root)
-    write_rule_manifest(manifest, build_root / "rule-manifest.json")
-    write_rule_audit(manifest, output_root, build_root / "rule-audit.json")
-    render_mihomo(
-        project_root=project_root,
-        output_root=output_root,
-        public_base_url=public_base_url,
-        nodes=nodes,
-        manifest=manifest,
-        node_source_audit=source_audit,
-        overlay_name="macos",
-        output_name="mihomo-full.yaml",
-    )
-    render_mihomo(
-        project_root=project_root,
-        output_root=output_root,
-        public_base_url=public_base_url,
-        nodes=nodes,
-        manifest=manifest,
-        node_source_audit=source_audit,
-        overlay_name="android",
-        output_name="mihomo-android.yaml",
-    )
-    render_shadowrocket(
-        project_root=project_root,
-        output_root=output_root,
-        public_base_url=public_base_url,
-        private_base_url=private_base_url,
-        nodes=nodes,
-        manifest=manifest,
-        node_source_audit=source_audit,
-        output_name="shadowrocket.conf",
-        traffic_saver=True,
-    )
-    render_shadowrocket(
-        project_root=project_root,
-        output_root=output_root,
-        public_base_url=public_base_url,
-        private_base_url=private_base_url,
-        nodes=nodes,
-        manifest=manifest,
-        node_source_audit=source_audit,
-        output_name="shadowrocket-strict.conf",
-        traffic_saver=False,
-    )
-    render_index(output_root=output_root, public_base_url=public_base_url, private_base_url=private_base_url)
     return 0
 
 
 def _prepare_public_pages(args: argparse.Namespace) -> int:
-    project_root, config, output_root, _ = _load_context(args)
-    public_base_url = config.resolve_public_base_url(args.public_base_url)
-    pages_root = Path(args.output).resolve() if args.output else project_root / "public-dist"
-    prepare_public_pages(source_root=output_root, output_root=pages_root, public_base_url=public_base_url)
+    prepare_public_pages_artifact(
+        PublicPagesOptions(
+            project_root=Path(args.project_root).resolve() if args.project_root else None,
+            config_path=Path(args.config).resolve() if args.config else None,
+            public_base_url=args.public_base_url,
+            output=Path(args.output).resolve() if args.output else None,
+        )
+    )
     return 0
 
 
 def _validate(args: argparse.Namespace) -> int:
-    project_root, _, output_root, _ = _load_context(args)
-    mihomo_path = output_root / "mihomo-full.yaml"
-    android_mihomo_path = output_root / "mihomo-android.yaml"
-    shadowrocket_path = output_root / "shadowrocket.conf"
-    shadowrocket_strict_path = output_root / "shadowrocket-strict.conf"
-    if not mihomo_path.exists():
-        raise FileNotFoundError(mihomo_path)
-    if not android_mihomo_path.exists():
-        raise FileNotFoundError(android_mihomo_path)
-    if not shadowrocket_path.exists():
-        raise FileNotFoundError(shadowrocket_path)
-    if not shadowrocket_strict_path.exists():
-        raise FileNotFoundError(shadowrocket_strict_path)
-
-    validation_path = project_root / "config" / "mihomo" / "validation.yaml"
-    validate_mihomo_config(mihomo_path, validation_path)
-    validate_mihomo_config(android_mihomo_path, validation_path)
-    validate_rule_audit(
-        project_root / "build" / "rule-audit.json",
-        project_root / "config" / "rule-audit-baseline.yaml",
+    validate_outputs(
+        ValidateOptions(
+            project_root=Path(args.project_root).resolve() if args.project_root else None,
+            config_path=Path(args.config).resolve() if args.config else None,
+            mihomo_bin=Path(args.mihomo_bin).resolve() if args.mihomo_bin else None,
+        )
     )
-
-    validate_shadowrocket_config(shadowrocket_path, traffic_saver=True)
-    validate_shadowrocket_config(shadowrocket_strict_path, traffic_saver=False)
-    validate_route_expectations(
-        mihomo_paths=[mihomo_path, android_mihomo_path],
-        shadowrocket_path=shadowrocket_path,
-        shadowrocket_strict_path=shadowrocket_strict_path,
-        expectations_path=project_root / "config" / "route-expectations.yaml",
-    )
-
-    mihomo_bin = Path(args.mihomo_bin).resolve() if args.mihomo_bin else DEFAULT_MIhOMO_BIN
-    if mihomo_bin.exists():
-        subprocess.run([str(mihomo_bin), "-t", "-f", str(mihomo_path)], check=True)
-        subprocess.run([str(mihomo_bin), "-t", "-f", str(android_mihomo_path)], check=True)
     return 0
 
 
 def _smoke_runtime(args: argparse.Namespace) -> int:
-    project_root, _, output_root, _ = _load_context(args)
-    mihomo_bin = Path(args.mihomo_bin).resolve() if args.mihomo_bin else DEFAULT_MIhOMO_BIN
-    if not mihomo_bin.exists():
-        raise FileNotFoundError(mihomo_bin)
-
-    urls = list(args.url)
-    for index, config_name in enumerate(("mihomo-full.yaml", "mihomo-android.yaml")):
-        run_mihomo_runtime_smoke(
-            mihomo_bin=mihomo_bin,
-            config_path=output_root / config_name,
-            mixed_port=args.mixed_port + index * 10,
-            controller_port=args.controller_port + index * 10,
-            urls=urls,
-            provider_timeout_seconds=args.provider_timeout,
+    smoke_runtime(
+        RuntimeSmokeOptions(
+            project_root=Path(args.project_root).resolve() if args.project_root else None,
+            config_path=Path(args.config).resolve() if args.config else None,
+            mihomo_bin=Path(args.mihomo_bin).resolve() if args.mihomo_bin else None,
+            mixed_port=args.mixed_port,
+            controller_port=args.controller_port,
+            provider_timeout=args.provider_timeout,
+            urls=list(args.url),
         )
+    )
+    return 0
+
+
+def _select_publish_mode(args: argparse.Namespace) -> int:
+    mode = select_publish_mode(os.environ)
+    if args.github_env:
+        write_github_env_lines(mode, Path(args.github_env).resolve())
+    else:
+        for line in mode.github_env_lines():
+            print(line)
+    print(f"Publish mode: {mode.name}", file=sys.stderr)
     return 0
 
 
@@ -284,6 +114,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=["https://www.baidu.com/", "https://github.com/"],
         help="URL to request through the temporary mixed-port. Can be passed more than once.",
     )
+    publish_parser = subparsers.add_parser("select-publish-mode")
+    publish_parser.add_argument(
+        "--github-env",
+        default=None,
+        help="Append selected publish mode variables to this GitHub Actions env file. Prints to stdout when omitted.",
+    )
     return parser
 
 
@@ -298,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
         return _validate(args)
     if args.command == "smoke-runtime":
         return _smoke_runtime(args)
+    if args.command == "select-publish-mode":
+        return _select_publish_mode(args)
     parser.error(f"Unsupported command: {args.command}")
     return 2
 

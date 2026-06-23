@@ -2,13 +2,24 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from subscription_builder.models import ProxyNode
 from subscription_builder.render import prepare_public_pages, render_mihomo, render_shadowrocket
-from subscription_builder.route_expectations import route_mihomo_domain, route_shadowrocket_domain, validate_route_expectations
+from subscription_builder.route_expectations import (
+    route_mihomo_domain,
+    route_shadowrocket_domain,
+    validate_route_expectations,
+    validate_rule_coverage,
+)
 from subscription_builder.rules import BuiltRule
-from subscription_builder.validate import validate_mihomo_config, validate_rule_audit, validate_shadowrocket_config
+from subscription_builder.validate import (
+    validate_mihomo_config,
+    validate_public_pages_artifact,
+    validate_rule_audit,
+    validate_shadowrocket_config,
+)
 
 
 RULE_IDS = [
@@ -104,7 +115,6 @@ def _render_shadowrocket(
     tmp_path: Path,
     *,
     output_name: str = "shadowrocket.conf",
-    traffic_saver: bool = True,
     nodes: list[ProxyNode] | None = None,
 ) -> str:
     rules = [_rule(rule_id) for rule_id in RULE_IDS]
@@ -153,6 +163,12 @@ def _render_shadowrocket(
         rule.path = f"rules/shadowrocket/{shadowrocket_paths[rule.rule_id]}"
 
     shadowrocket_rule_ids = set(shadowrocket_paths)
+    rules_root = tmp_path / "rules" / "shadowrocket"
+    rules_root.mkdir(parents=True, exist_ok=True)
+    for rule in rules:
+        if rule.rule_id in shadowrocket_rule_ids:
+            (tmp_path / rule.path).write_text(_shadowrocket_rule_fixture(rule.rule_id), encoding="utf-8")
+
     render_shadowrocket(
         project_root=Path.cwd(),
         output_root=tmp_path,
@@ -170,9 +186,49 @@ def _render_shadowrocket(
         ],
         manifest={"mihomo": [], "shadowrocket": [rule for rule in rules if rule.rule_id in shadowrocket_rule_ids]},
         output_name=output_name,
-        traffic_saver=traffic_saver,
     )
     return (tmp_path / output_name).read_text(encoding="utf-8")
+
+
+def _shadowrocket_rule_fixture(rule_id: str) -> str:
+    fixtures = {
+        "private": "DOMAIN-SUFFIX,local\n",
+        "lan_ip": "IP-CIDR,192.168.0.0/16\n",
+        "lan_non_ip": "DOMAIN-SUFFIX,lan\n",
+        "baidu_direct_domain": "DOMAIN-SUFFIX,baidu.com\n",
+        "weibo_direct_domain": "DOMAIN-SUFFIX,weibo.com\n",
+        "xiaohongshu_direct_domain": "DOMAIN-SUFFIX,xiaohongshu.com\n",
+        "xiaomi_direct_domain": "DOMAIN-SUFFIX,xiaomi.com\n",
+        "huawei_direct_domain": "DOMAIN-SUFFIX,huawei.com\n",
+        "wechat_direct_domain": "DOMAIN-SUFFIX,wechat.com\n",
+        "bilibili_direct_domain": "DOMAIN-SUFFIX,bilibili.com\nDOMAIN-SUFFIX,iqiyi.com\nDOMAIN-SUFFIX,v.qq.com\nDOMAIN-SUFFIX,youku.com\nDOMAIN-SUFFIX,douyin.com\nDOMAIN-SUFFIX,taobao.com\n",
+        "neteasemusic_direct_domain": "DOMAIN-SUFFIX,music.163.com\n",
+        "china_media_direct_domain": "DOMAIN-SUFFIX,mgtv.com\n",
+        "ai": "DOMAIN-SUFFIX,anthropic.com\nDOMAIN-SUFFIX,codex.openai.com\n",
+        "apple_intelligence": "DOMAIN-SUFFIX,apple-relay.apple.com\n",
+        "github": "DOMAIN-SUFFIX,release-assets.githubusercontent.com\nDOMAIN-SUFFIX,github-releases.githubusercontent.com\n",
+        "google": "DOMAIN-SUFFIX,google.com\n",
+        "telegram_non_ip": "DOMAIN-SUFFIX,telegram.org\n",
+        "apple_cn": "DOMAIN-SUFFIX,apple.com.cn\n",
+        "apple_cdn": "DOMAIN-SUFFIX,cdn-apple.com\n",
+        "apple_services": "DOMAIN-SUFFIX,icloud.com\nDOMAIN-SUFFIX,apple.com\n",
+        "microsoft_cdn": "DOMAIN-SUFFIX,download.visualstudio.microsoft.com\n",
+        "microsoft": "DOMAIN-SUFFIX,office.com\nDOMAIN-SUFFIX,live.com\nDOMAIN-SUFFIX,sharepoint.com\n",
+        "stream_non_ip": "DOMAIN-SUFFIX,youtube.com\nDOMAIN-SUFFIX,spotify.com\nDOMAIN-SUFFIX,tiktok.com\n",
+        "direct_non_ip": "DOMAIN-SUFFIX,mirrors.aliyun.com\n",
+        "domestic_non_ip": "DOMAIN-SUFFIX,bilibili.com\n",
+        "cn": "DOMAIN-SUFFIX,cn\n",
+        "developer_global": "DOMAIN-SUFFIX,pypi.org\nDOMAIN-SUFFIX,repo.anaconda.com\nDOMAIN-SUFFIX,download.pytorch.org\nDOMAIN-SUFFIX,developer.hashicorp.com\n",
+        "download_domainset": "DOMAIN-SUFFIX,download.example\n",
+        "download_non_ip": "DOMAIN-SUFFIX,assets.example\n",
+        "global_non_ip": "DOMAIN-SUFFIX,global.example\n",
+        "geolocation_non_cn": "DOMAIN-SUFFIX,foreign.example\n",
+        "telegram_ip": "IP-CIDR,149.154.160.0/20\n",
+        "stream_ip": "IP-CIDR,203.0.113.0/24\n",
+        "domestic_ip": "IP-CIDR,203.0.113.0/24\n",
+        "cn_ip": "IP-CIDR,1.0.1.0/24\n",
+    }
+    return fixtures.get(rule_id, f"DOMAIN-SUFFIX,{rule_id}.example\n")
 
 
 def test_mihomo_disables_ipv6_by_default(tmp_path: Path) -> None:
@@ -326,14 +382,16 @@ def test_shadowrocket_routes_specific_foreign_services_before_download_and_cn_ip
 
     github_pin_idx = lines.index("DOMAIN-SUFFIX,github.com,💻 GitHub")
     ai_pin_idx = lines.index("DOMAIN-SUFFIX,chatgpt.com,🤖 AI")
-    cn_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/cn.list,DIRECT")
+    rule_set_lines = [line for line in lines if line.startswith("RULE-SET,")]
+    assert len(rule_set_lines) < 25
+    cn_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/bundles/05-direct.conf,DIRECT")
     github_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/github.list,💻 GitHub")
-    ai_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/ai.conf,🤖 AI")
+    ai_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/bundles/03-ai.conf,🤖 AI")
     microsoft_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/microsoft.conf,🪟 Microsoft")
     google_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/google.list,🔎 Google")
     developer_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/developer_global.conf,🛠 Developer")
-    download_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/download_domainset.conf,⬇️ 下载")
-    cn_ip_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/cn_ip.list,DIRECT")
+    download_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/bundles/06-download.conf,⬇️ 下载")
+    cn_ip_idx = lines.index("RULE-SET,https://example.test/sub/rules/shadowrocket/bundles/08-direct.conf,DIRECT")
 
     assert github_pin_idx < download_idx
     assert ai_pin_idx < download_idx
@@ -378,7 +436,7 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     assert "⬇️ 下载 = select,🚀 代理,node-a" in lines
     assert "🌐 兜底 = select,🚀 代理,DIRECT,node-a" in lines
 
-    strict_text = _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf", traffic_saver=False)
+    strict_text = _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf")
     strict_lines = strict_text.splitlines()
     assert "⬇️ 下载 = select,🚀 代理,node-a" in strict_lines
     assert "🌐 兜底 = select,🚀 代理,DIRECT,node-a" in strict_lines
@@ -555,20 +613,22 @@ def test_ai_group_prefers_us_home_node_but_all_nodes_are_selectable_across_clien
 def test_shadowrocket_includes_new_sukkaw_layers_and_passes_policy_validation(tmp_path: Path) -> None:
     text = _render_shadowrocket(tmp_path)
 
-    assert "RULE-SET,https://example.test/sub/rules/shadowrocket/apple_intelligence.conf,🤖 AI" in text
+    ai_bundle = (tmp_path / "rules" / "shadowrocket" / "bundles" / "03-ai.conf").read_text(encoding="utf-8")
+    assert "DOMAIN-SUFFIX,apple-relay.apple.com" in ai_bundle
+    assert "RULE-SET,https://example.test/sub/rules/shadowrocket/bundles/03-ai.conf,🤖 AI" in text
     assert "RULE-SET,https://example.test/sub/rules/shadowrocket/developer_global.conf,🛠 Developer" in text
-    assert "RULE-SET,https://example.test/sub/rules/shadowrocket/direct.conf,DIRECT" in text
-    assert "RULE-SET,https://example.test/sub/rules/shadowrocket/global.conf,🚀 代理" in text
+    assert "RULE-SET,https://example.test/sub/rules/shadowrocket/bundles/05-direct.conf,DIRECT" in text
+    assert "RULE-SET,https://example.test/sub/rules/shadowrocket/bundles/07-proxy.conf,🚀 代理" in text
 
-    validate_shadowrocket_config(Path(tmp_path) / "shadowrocket.conf", traffic_saver=True)
-    _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf", traffic_saver=False)
-    validate_shadowrocket_config(Path(tmp_path) / "shadowrocket-strict.conf", traffic_saver=False)
+    validate_shadowrocket_config(Path(tmp_path) / "shadowrocket.conf")
+    _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf")
+    validate_shadowrocket_config(Path(tmp_path) / "shadowrocket-strict.conf")
 
 
 def test_generated_configs_route_representative_domains_as_expected(tmp_path: Path) -> None:
     _render_config(tmp_path)
     _render_shadowrocket(tmp_path)
-    _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf", traffic_saver=False)
+    _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf")
     rules_root = tmp_path / "rules"
     for client in ("mihomo", "shadowrocket"):
         for rule_id in RULE_IDS:
@@ -728,6 +788,52 @@ rules:
     validate_rule_audit(audit_path, baseline_path)
 
 
+def test_rule_coverage_reports_category_failures(tmp_path: Path) -> None:
+    rules_root = tmp_path / "rules"
+    (rules_root / "mihomo").mkdir(parents=True)
+    (rules_root / "shadowrocket").mkdir(parents=True)
+    (rules_root / "mihomo" / "developer_global.txt").write_text("DOMAIN-SUFFIX,pypi.org\n", encoding="utf-8")
+    (rules_root / "shadowrocket" / "developer_global.conf").write_text("DOMAIN-SUFFIX,pypi.org\n", encoding="utf-8")
+    (tmp_path / "mihomo-full.yaml").write_text(
+        """
+rule-providers:
+  developer_global:
+    path: ./rules/mihomo/developer_global.txt
+rules:
+  - RULE-SET,developer_global,🛠 Developer
+  - MATCH,DIRECT
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (tmp_path / "shadowrocket.conf").write_text(
+        """
+[Rule]
+RULE-SET,https://example.test/sub/rules/shadowrocket/developer_global.conf,🛠 Developer
+FINAL,DIRECT
+""".lstrip(),
+        encoding="utf-8",
+    )
+    coverage_path = tmp_path / "coverage.yaml"
+    coverage_path.write_text(
+        """
+categories:
+  - name: developer-smoke
+    policy: "🛠 Developer"
+    domains:
+      - pypi.org
+      - missing.example
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="developer-smoke/.+missing.example"):
+        validate_rule_coverage(
+            mihomo_paths=[tmp_path / "mihomo-full.yaml"],
+            shadowrocket_path=tmp_path / "shadowrocket.conf",
+            coverage_path=coverage_path,
+        )
+
+
 def test_prepare_public_pages_excludes_private_subscription_artifacts(tmp_path: Path) -> None:
     source_root = tmp_path / "dist"
     public_root = tmp_path / "public-dist"
@@ -738,6 +844,7 @@ def test_prepare_public_pages_excludes_private_subscription_artifacts(tmp_path: 
         "DOMAIN-SUFFIX,pypi.org\n",
         encoding="utf-8",
     )
+    (source_root / "rules" / ".DS_Store").write_text("metadata\n", encoding="utf-8")
     for private_name in [
         "mihomo-full.yaml",
         "mihomo-android.yaml",
@@ -758,6 +865,7 @@ def test_prepare_public_pages_excludes_private_subscription_artifacts(tmp_path: 
     assert (public_root / "rules" / "shadowrocket" / "developer_global.conf").exists()
     assert (public_root / ".nojekyll").exists()
     assert (public_root / ".generated-public-pages").exists()
+    assert not (public_root / "rules" / ".DS_Store").exists()
     assert "node-secret" not in (public_root / "index.html").read_text(encoding="utf-8")
     for private_name in [
         "mihomo-full.yaml",
@@ -768,3 +876,17 @@ def test_prepare_public_pages_excludes_private_subscription_artifacts(tmp_path: 
         "shadowrocket-uris.txt",
     ]:
         assert not (public_root / private_name).exists()
+    validate_public_pages_artifact(public_root)
+
+
+def test_public_pages_validation_rejects_private_artifacts(tmp_path: Path) -> None:
+    public_root = tmp_path / "public-dist"
+    (public_root / "rules" / "mihomo").mkdir(parents=True)
+    (public_root / "rules" / "shadowrocket").mkdir(parents=True)
+    (public_root / ".generated-public-pages").write_text("", encoding="utf-8")
+    (public_root / ".nojekyll").write_text("", encoding="utf-8")
+    (public_root / "index.html").write_text("<!doctype html>\n", encoding="utf-8")
+    (public_root / "mihomo-full.yaml").write_text("proxies:\n  - secret-node\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="private artifact present"):
+        validate_public_pages_artifact(public_root)

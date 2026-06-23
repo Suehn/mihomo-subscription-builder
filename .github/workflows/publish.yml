@@ -50,16 +50,7 @@ jobs:
         run: python -m pytest
 
       - name: Select publish mode
-        run: |
-          if [ -n "$PRIVATE_BASE_URL" ] && [ -n "$PRIVATE_SSH_HOST" ] && [ -n "$PRIVATE_SSH_USER" ] && [ -n "$PRIVATE_SSH_PATH" ] && [ -n "$PRIVATE_SSH_KEY" ]; then
-            echo "PRIVATE_DEPLOY_ENABLED=true" >> "$GITHUB_ENV"
-            echo "PAGES_ARTIFACT_PATH=public-dist" >> "$GITHUB_ENV"
-            echo "EFFECTIVE_PRIVATE_BASE_URL=$PRIVATE_BASE_URL" >> "$GITHUB_ENV"
-          else
-            echo "PRIVATE_DEPLOY_ENABLED=false" >> "$GITHUB_ENV"
-            echo "PAGES_ARTIFACT_PATH=dist" >> "$GITHUB_ENV"
-            echo "EFFECTIVE_PRIVATE_BASE_URL=" >> "$GITHUB_ENV"
-          fi
+        run: python -m subscription_builder.cli select-publish-mode --github-env "$GITHUB_ENV"
 
       - name: Build artifacts
         run: PRIVATE_BASE_URL="$EFFECTIVE_PRIVATE_BASE_URL" python -m subscription_builder.cli build-all

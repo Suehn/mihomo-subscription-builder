@@ -6,6 +6,14 @@ from typing import Iterable
 
 import yaml
 
+from .rule_grammar import (
+    payload_lines_from_file,
+    policy_from_rule_parts,
+    rule_matches_domain,
+    split_rule_parts,
+)
+from .routing_contract import GEOSITE_FALLBACK_SUFFIXES, LOGIC_RULE_TYPES, MIHOMO_GEOSITE_PROVIDER_FILES
+
 
 @dataclass(slots=True)
 class MatchResult:
@@ -25,48 +33,10 @@ def _domain_matches(rule_domain: str, domain: str, suffix: bool) -> bool:
     return domain == rule_domain
 
 
-def _payload_lines(path: Path) -> list[str]:
-    text = path.read_text(encoding="utf-8")
-    if path.suffix in {".yaml", ".yml"}:
-        data = yaml.safe_load(text)
-        if isinstance(data, dict) and isinstance(data.get("payload"), list):
-            return [str(item).strip() for item in data["payload"] if str(item).strip()]
-    return [line.strip() for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#")]
-
-
-def _rule_matches_domain(rule: str, domain: str) -> bool:
-    parts = [part.strip() for part in rule.split(",")]
-    if len(parts) == 1:
-        if rule.startswith("+."):
-            return _domain_matches(rule[2:], domain, suffix=True)
-        if rule.startswith("."):
-            return _domain_matches(rule[1:], domain, suffix=True)
-        return _domain_matches(rule, domain, suffix=False)
-    if len(parts) < 2:
-        return False
-    kind = parts[0]
-    value = parts[1]
-    if kind == "DOMAIN":
-        return _domain_matches(value, domain, suffix=False)
-    if kind == "DOMAIN-SUFFIX":
-        return _domain_matches(value, domain, suffix=True)
-    if kind == "DOMAIN-KEYWORD":
-        return value.lower() in domain.lower()
-    if kind in {"DOMAIN-REGEX", "PROCESS-NAME", "IP-CIDR", "IP-CIDR6"}:
-        return False
-    if kind in {"full"}:
-        return _domain_matches(value, domain, suffix=False)
-    if rule.startswith("+."):
-        return _domain_matches(rule[2:], domain, suffix=True)
-    if rule.startswith("."):
-        return _domain_matches(rule[1:], domain, suffix=True)
-    return _domain_matches(rule, domain, suffix=True)
-
-
 def _provider_matches(path: Path, domain: str) -> bool:
     if not path.exists():
         return False
-    return any(_rule_matches_domain(line, domain) for line in _payload_lines(path))
+    return any(rule_matches_domain(line, domain) for line in payload_lines_from_file(path))
 
 
 def _mihomo_provider_paths(config: dict[str, object], config_path: Path) -> dict[str, Path]:
@@ -96,14 +66,7 @@ def _mihomo_provider_path(config_path: Path, provider: dict[str, object]) -> Pat
 
 
 def _geosite_rule_path(config_path: Path, category: str) -> Path | None:
-    file_names = {
-        "private": "private.yaml",
-        "github": "github.yaml",
-        "google": "google.yaml",
-        "cn": "cn.yaml",
-        "geolocation-!cn": "geolocation-!cn.yaml",
-    }
-    file_name = file_names.get(category)
+    file_name = MIHOMO_GEOSITE_PROVIDER_FILES.get(category)
     if not file_name:
         return None
     return (config_path.parent / "rules" / "mihomo" / file_name).resolve()
@@ -115,32 +78,8 @@ def _geosite_matches(category: str, domain: str, *, config_path: Path | None = N
         if provider_path and _provider_matches(provider_path, domain):
             return True
 
-    suffixes = {
-        "youtube": ["youtube.com", "youtu.be", "googlevideo.com", "ytimg.com"],
-        "netflix": ["netflix.com", "nflxvideo.net", "nflximg.net", "nflxext.com", "nflxso.net"],
-        "disney": ["disneyplus.com", "disney-plus.net", "dssott.com"],
-        "spotify": ["spotify.com", "scdn.co", "spotifycdn.com"],
-        "tiktok": ["tiktok.com", "tiktokv.com", "byteoversea.com"],
-        "google": ["google.com", "googleapis.com", "gstatic.com", "googleusercontent.com", "google.dev"],
-        "microsoft": ["microsoft.com", "windows.com", "office.com", "live.com", "azure.com"],
-        "microsoft@cn": ["download.visualstudio.microsoft.com"],
-        "apple": ["apple.com", "icloud.com", "mzstatic.com"],
-        "apple-cn": ["icloud.com.cn"],
-        "cn": ["cn"],
-        "geolocation-!cn": [],
-        "private": ["local", "lan"],
-    }.get(category, [])
+    suffixes = GEOSITE_FALLBACK_SUFFIXES.get(category, [])
     return any(_domain_matches(suffix, domain, suffix=True) for suffix in suffixes)
-
-
-def _policy_from_rule_parts(parts: list[str]) -> str:
-    if parts[0] in {"MATCH", "FINAL"}:
-        return parts[1]
-    return parts[2]
-
-
-def _logic_rule_policy(rule: str) -> str:
-    return rule.rsplit(",", 1)[-1]
 
 
 def route_mihomo_domain(config_path: Path, domain: str) -> MatchResult:
@@ -150,10 +89,10 @@ def route_mihomo_domain(config_path: Path, domain: str) -> MatchResult:
     rules = [str(rule) for rule in config.get("rules", [])]
     provider_paths = _mihomo_provider_paths(config, config_path)
     for rule in rules:
-        parts = [part.strip() for part in rule.split(",")]
+        parts = split_rule_parts(rule)
         if not parts:
             continue
-        if parts[0] in {"AND", "OR", "NOT"}:
+        if parts[0] in LOGIC_RULE_TYPES:
             # Domain-only simulator cannot decide GEOIP clauses, so logical
             # rules are intentionally skipped. Concrete follow-up rules are
             # still evaluated and covered by route expectations.
@@ -161,16 +100,16 @@ def route_mihomo_domain(config_path: Path, domain: str) -> MatchResult:
         if parts[0] == "RULE-SET" and len(parts) >= 3:
             provider_path = provider_paths.get(parts[1])
             if provider_path and _provider_matches(provider_path, domain):
-                return MatchResult(policy=_policy_from_rule_parts(parts), rule=rule)
+                return MatchResult(policy=policy_from_rule_parts(parts), rule=rule)
             continue
         if parts[0] == "GEOSITE":
             if len(parts) >= 3 and _geosite_matches(parts[1], domain, config_path=config_path):
-                return MatchResult(policy=_policy_from_rule_parts(parts), rule=rule)
+                return MatchResult(policy=policy_from_rule_parts(parts), rule=rule)
             continue
         if parts[0] in {"MATCH", "FINAL"} and len(parts) >= 2:
             return MatchResult(policy=parts[1], rule=rule)
-        if len(parts) >= 3 and _rule_matches_domain(rule, domain):
-            return MatchResult(policy=_policy_from_rule_parts(parts), rule=rule)
+        if len(parts) >= 3 and rule_matches_domain(rule, domain):
+            return MatchResult(policy=policy_from_rule_parts(parts), rule=rule)
     raise ValueError(f"No Mihomo rule matched domain: {domain}")
 
 
@@ -191,7 +130,7 @@ def _shadowrocket_section(lines: list[str], name: str) -> list[str]:
 def route_shadowrocket_domain(config_path: Path, domain: str) -> MatchResult:
     lines = config_path.read_text(encoding="utf-8").splitlines()
     for rule in _shadowrocket_section(lines, "Rule"):
-        parts = [part.strip() for part in rule.split(",")]
+        parts = split_rule_parts(rule)
         if not parts:
             continue
         if parts[0] == "RULE-SET" and len(parts) >= 3:
@@ -201,7 +140,7 @@ def route_shadowrocket_domain(config_path: Path, domain: str) -> MatchResult:
             continue
         if parts[0] in {"FINAL", "MATCH"} and len(parts) >= 2:
             return MatchResult(policy=parts[1], rule=rule)
-        if len(parts) >= 3 and _rule_matches_domain(rule, domain):
+        if len(parts) >= 3 and rule_matches_domain(rule, domain):
             return MatchResult(policy=parts[2], rule=rule)
     raise ValueError(f"No Shadowrocket rule matched domain: {domain}")
 
@@ -244,3 +183,69 @@ def validate_route_expectations(
                 )
     if errors:
         raise ValueError("Route expectation failures:\n" + "\n".join(errors))
+
+
+def _coverage_category_expectations(raw_category: object) -> dict[str, str]:
+    if not isinstance(raw_category, dict):
+        raise TypeError("Rule coverage categories must be mappings")
+    name = str(raw_category.get("name", "")).strip()
+    if not name:
+        raise ValueError("Rule coverage category is missing name")
+
+    raw_expectations = raw_category.get("expectations")
+    if raw_expectations is not None:
+        if not isinstance(raw_expectations, dict):
+            raise TypeError(f"Rule coverage category {name} expectations must be a mapping")
+        return {str(domain): str(policy) for domain, policy in raw_expectations.items()}
+
+    policy = raw_category.get("policy")
+    domains = raw_category.get("domains")
+    if policy is None or not isinstance(domains, list):
+        raise TypeError(f"Rule coverage category {name} must define policy plus domains or expectations")
+    return {str(domain): str(policy) for domain in domains}
+
+
+def validate_rule_coverage(
+    *,
+    mihomo_paths: Iterable[Path],
+    shadowrocket_path: Path,
+    shadowrocket_strict_path: Path | None = None,
+    coverage_path: Path,
+) -> None:
+    payload = _load_yaml(coverage_path)
+    if not isinstance(payload, dict) or not isinstance(payload.get("categories"), list):
+        raise TypeError(f"{coverage_path} must contain a categories list")
+
+    errors: list[str] = []
+    for raw_category in payload["categories"]:
+        if not isinstance(raw_category, dict):
+            raise TypeError("Rule coverage categories must be mappings")
+        category_name = str(raw_category.get("name", "")).strip()
+        expectations = _coverage_category_expectations(raw_category)
+        if not expectations:
+            errors.append(f"{category_name}: no coverage domains")
+            continue
+        for domain, expected_policy in expectations.items():
+            for config_path in mihomo_paths:
+                result = route_mihomo_domain(config_path, domain)
+                if result.policy != expected_policy:
+                    errors.append(
+                        f"{category_name}/{config_path.name}: {domain} => {result.policy} "
+                        f"via {result.rule}; expected {expected_policy}"
+                    )
+            shadow_result = route_shadowrocket_domain(shadowrocket_path, domain)
+            if shadow_result.policy != expected_policy:
+                errors.append(
+                    f"{category_name}/{shadowrocket_path.name}: {domain} => {shadow_result.policy} "
+                    f"via {shadow_result.rule}; expected {expected_policy}"
+                )
+            if shadowrocket_strict_path is not None:
+                strict_result = route_shadowrocket_domain(shadowrocket_strict_path, domain)
+                if strict_result.policy != expected_policy:
+                    errors.append(
+                        f"{category_name}/{shadowrocket_strict_path.name}: {domain} => {strict_result.policy} "
+                        f"via {strict_result.rule}; expected {expected_policy}"
+                    )
+
+    if errors:
+        raise ValueError("Rule coverage failures:\n" + "\n".join(errors))

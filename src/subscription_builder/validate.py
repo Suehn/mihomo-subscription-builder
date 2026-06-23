@@ -1,60 +1,32 @@
 from __future__ import annotations
 
 from pathlib import Path
-import re
 
 import yaml
 
-from .render import GROUP_LABELS
+from .rule_grammar import policy_from_rule, referenced_rule_provider_ids
+from .routing_contract import (
+    BUILTIN_POLICIES,
+    GROUP_LABELS,
+    SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_FIRST,
+    SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_MEMBER,
+    SHADOWROCKET_REQUIRED_RULE_FRAGMENTS,
+    SHADOWROCKET_RULE_ORDER,
+)
 
 
-BUILTIN_POLICIES = {"DIRECT", "REJECT", "REJECT-DROP", "PASS"}
-LOGIC_RULE_TYPES = {"AND", "OR", "NOT"}
-RULE_SET_REF_RE = re.compile(r"RULE-SET,([A-Za-z0-9_.!@-]+)")
-SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_FIRST = [
-    "PROXY",
-    "GitHub",
-    "AI",
-    "Google",
-    "Developer",
-    "Microsoft",
-    "Telegram",
-    "Streaming",
-]
-SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_MEMBER = [
-    "GitHub",
-    "AI",
-    "Google",
-    "Developer",
-    "Microsoft",
-    "Telegram",
-    "Streaming",
-    "Download",
-]
-SHADOWROCKET_REQUIRED_RULE_FRAGMENTS = [
-    "DOMAIN-SUFFIX,github.com",
-    "DOMAIN-SUFFIX,objects.githubusercontent.com",
-    "DOMAIN-SUFFIX,chatgpt.com",
-    "DOMAIN-SUFFIX,claude.ai",
-    "/apple_intelligence.conf",
-    "/developer_global.conf",
-    "/direct.conf",
-    "/global.conf",
-    "FINAL,",
-]
-SHADOWROCKET_RULE_ORDER = [
-    ("DOMAIN-SUFFIX,github.com", "/download_domainset.conf"),
-    ("/github.", "/download_domainset.conf"),
-    ("/ai.conf", "/download_domainset.conf"),
-    ("/apple_intelligence.conf", "/download_domainset.conf"),
-    ("/microsoft.conf", "/download_domainset.conf"),
-    ("/microsoft_cdn.conf", "/download_domainset.conf"),
-    ("/apple_cdn.conf", "/download_domainset.conf"),
-    ("/cn.", "/download_domainset.conf"),
-    ("/developer_global.conf", "/download_domainset.conf"),
-    ("/download_domainset.conf", "/cn_ip."),
-    ("/geolocation-!cn.", "/cn_ip."),
-]
+PUBLIC_PAGES_MARKER = ".generated-public-pages"
+PUBLIC_PAGES_ALLOWED_ROOT_ENTRIES = {"index.html", ".nojekyll", PUBLIC_PAGES_MARKER, "rules"}
+PRIVATE_ARTIFACT_NAMES = {
+    "mihomo-full.yaml",
+    "mihomo-android.yaml",
+    "shadowrocket.conf",
+    "shadowrocket-strict.conf",
+    "shadowrocket-subscription.txt",
+    "shadowrocket-uris.txt",
+    "node-sources.json",
+    "nodes.json",
+}
 
 
 def _load_yaml(path: Path) -> object:
@@ -75,25 +47,11 @@ def _first_index_contains(rules: list[str], needle: str) -> int:
     raise ValueError(f"Missing rule containing: {needle}")
 
 
-def _policy_from_rule(rule: str) -> str | None:
-    if not rule:
-        return None
-
-    rule_type = rule.split(",", 1)[0]
-    if rule_type in LOGIC_RULE_TYPES:
-        return rule.rsplit(",", 1)[-1]
-
-    parts = rule.split(",")
-    if parts[0] in {"MATCH", "FINAL"}:
-        return parts[1] if len(parts) >= 2 else None
-    return parts[2] if len(parts) >= 3 else None
-
-
 def _validate_rule_groups(config: dict[str, object]) -> None:
     groups = {str(group["name"]) for group in config.get("proxy-groups", [])}
     missing: set[str] = set()
     for rule in config.get("rules", []):
-        policy = _policy_from_rule(str(rule))
+        policy = policy_from_rule(str(rule))
         if policy and policy not in BUILTIN_POLICIES and policy not in groups:
             missing.add(policy)
     if missing:
@@ -105,13 +63,11 @@ def _validate_rule_providers(config: dict[str, object]) -> None:
     if not isinstance(providers, dict):
         raise TypeError("rule-providers must be a mapping")
 
-    missing_provider_ids: set[str] = set()
-    for rule in config.get("rules", []):
-        rule_text = str(rule)
-        for match in RULE_SET_REF_RE.finditer(rule_text):
-            provider_id = match.group(1)
-            if provider_id not in providers:
-                missing_provider_ids.add(provider_id)
+    missing_provider_ids = {
+        provider_id
+        for provider_id in referenced_rule_provider_ids(str(rule) for rule in config.get("rules", []))
+        if provider_id not in providers
+    }
     if missing_provider_ids:
         raise ValueError(f"Mihomo rules reference missing rule-providers: {sorted(missing_provider_ids)}")
 
@@ -316,8 +272,7 @@ def _shadowrocket_groups(lines: list[str]) -> dict[str, list[str]]:
     return groups
 
 
-def validate_shadowrocket_config(config_path: Path, *, traffic_saver: bool = True) -> None:
-    del traffic_saver
+def validate_shadowrocket_config(config_path: Path) -> None:
     lines = config_path.read_text(encoding="utf-8").splitlines()
     for section in ("[General]", "[Proxy]", "[Proxy Group]", "[Rule]"):
         if section not in lines:
@@ -371,3 +326,34 @@ def validate_shadowrocket_config(config_path: Path, *, traffic_saver: bool = Tru
         after_index = _first_index_contains(rules, after)
         if before_index >= after_index:
             raise ValueError(f"Shadowrocket rule order violation: {before!r} must be before {after!r}")
+
+
+def validate_public_pages_artifact(public_root: Path) -> None:
+    if not public_root.exists():
+        raise FileNotFoundError(public_root)
+    if not public_root.is_dir():
+        raise NotADirectoryError(public_root)
+
+    required_paths = [
+        public_root / PUBLIC_PAGES_MARKER,
+        public_root / ".nojekyll",
+        public_root / "index.html",
+        public_root / "rules" / "mihomo",
+        public_root / "rules" / "shadowrocket",
+    ]
+    missing = [str(path.relative_to(public_root)) for path in required_paths if not path.exists()]
+    if missing:
+        raise ValueError(f"Public Pages artifact is missing required paths: {missing}")
+
+    errors: list[str] = []
+    for path in public_root.rglob("*"):
+        relative = path.relative_to(public_root)
+        if path.is_file() and path.name in PRIVATE_ARTIFACT_NAMES:
+            errors.append(f"private artifact present in public Pages output: {relative}")
+        if len(relative.parts) == 1 and relative.parts[0] not in PUBLIC_PAGES_ALLOWED_ROOT_ENTRIES:
+            errors.append(f"unexpected root entry in public Pages output: {relative}")
+        if path.name == ".DS_Store":
+            errors.append(f"metadata file present in public Pages output: {relative}")
+
+    if errors:
+        raise ValueError("Public Pages safety failures:\n" + "\n".join(errors))

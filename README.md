@@ -246,6 +246,9 @@ The rule source of truth is kept in reviewable templates:
 - `config/mihomo/validation.yaml`: policy checks for Mihomo route order and
   group defaults.
 - `config/route-expectations.yaml`: representative domain routing tests.
+- `config/rule-coverage.yaml`: category-level route coverage matrix for
+  GitHub, AI, developer ecosystems, domestic mirrors, streaming, and key
+  platform services.
 - `rules/custom/developer_global.txt`: small local developer ecosystem list.
 - `config/rule-audit-baseline.yaml`: line-count and type baseline for critical
   mirrored rule providers.
@@ -269,6 +272,8 @@ push, then update the client profile from the published URL.
   GitHub assets, AI domains, Telegram, Google, YouTube/Netflix, common Chinese
   video sites, domestic mirrors, Microsoft CDN, JetBrains downloads, npm/PyPI,
   Hugging Face, and CN direct behavior.
+- Category coverage from `config/rule-coverage.yaml`, which keeps broader
+  route coverage explicit without changing current user-facing route behavior.
 - Rule-provider audit data from `build/rule-audit.json`, including empty-provider
   checks, non-IP provider IP leakage checks, and strict Mihomo split checks for
   domestic direct domain/IP providers.

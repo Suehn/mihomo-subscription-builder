@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from ipaddress import ip_address
 from pathlib import Path
@@ -11,34 +12,30 @@ from typing import Iterable
 from jinja2 import Environment, FileSystemLoader
 import yaml
 
+from .rule_grammar import referenced_rule_provider_ids, split_rule_parts, with_resolved_policy
 from .models import ProxyNode
+from .routing_contract import (
+    SHADOWROCKET_GEOIP_RULE_IDS,
+    SHADOWROCKET_GEOSITE_RULE_IDS,
+    SHADOWROCKET_UNSUPPORTED_RULE_TYPES,
+    group_label,
+    resolve_policy,
+)
 from .rules import BuiltRule
 
 
-GROUP_LABELS = {
-    "PROXY": "🚀 代理",
-    "RuleUpdate": "🔄 规则更新",
-    "AI": "🤖 AI",
-    "GitHub": "💻 GitHub",
-    "Google": "🔎 Google",
-    "Developer": "🛠 Developer",
-    "Apple": "🍎 Apple",
-    "Microsoft": "🪟 Microsoft",
-    "Telegram": "✈️ Telegram",
-    "Streaming": "📺 流媒体",
-    "Download": "⬇️ 下载",
-    "Final": "🌐 兜底",
-}
-
-LOGIC_RULE_TYPES = {"AND", "OR", "NOT"}
-SHADOWROCKET_UNSUPPORTED_RULE_TYPES = {*LOGIC_RULE_TYPES, "SUB-RULE"}
-RULE_SET_REF_RE = re.compile(r"RULE-SET,([A-Za-z0-9_.!@-]+)")
 HOST_LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 PUBLIC_PAGES_MARKER = ".generated-public-pages"
 
 
+@dataclass(slots=True)
+class ShadowrocketRuleSetRef:
+    path: str
+    policy: str
+
+
 def _g(name: str) -> str:
-    return GROUP_LABELS[name]
+    return group_label(name)
 
 
 def _provider_url(base_url: str, relative_path: str) -> str:
@@ -58,24 +55,11 @@ def _load_mihomo_template(project_root: Path, name: str) -> object:
 
 
 def _resolve_policy(value: str) -> str:
-    if value.startswith("@"):
-        return _g(value[1:])
-    return value
+    return resolve_policy(value)
 
 
 def _resolve_rule(line: str) -> str:
-    rule_type = line.split(",", 1)[0]
-    if rule_type in LOGIC_RULE_TYPES:
-        head, policy = line.rsplit(",", 1)
-        return f"{head},{_resolve_policy(policy)}"
-
-    parts = line.split(",")
-    if parts[0] in {"MATCH", "FINAL"} and len(parts) >= 2:
-        parts[1] = _resolve_policy(parts[1])
-        return ",".join(parts)
-    if len(parts) >= 3:
-        parts[2] = _resolve_policy(parts[2])
-    return ",".join(parts)
+    return with_resolved_policy(line, _resolve_policy)
 
 
 def _dedupe(items: Iterable[str]) -> list[str]:
@@ -298,18 +282,6 @@ def _build_rule_providers(mihomo_rules: Iterable[BuiltRule], public_base_url: st
     return providers
 
 
-def _referenced_rule_provider_ids(rules: Iterable[str]) -> set[str]:
-    provider_ids: set[str] = set()
-    for rule in rules:
-        rule_text = str(rule)
-        parts = rule_text.split(",")
-        if len(parts) >= 2 and parts[0] == "RULE-SET":
-            provider_ids.add(parts[1])
-        for match in RULE_SET_REF_RE.finditer(rule_text):
-            provider_ids.add(match.group(1))
-    return provider_ids
-
-
 def _build_mihomo_groups(project_root: Path, nodes: list[ProxyNode]) -> list[dict[str, object]]:
     payload = _load_mihomo_template(project_root, "groups.yaml")
     if not isinstance(payload, dict):
@@ -337,7 +309,7 @@ def _build_mihomo_groups(project_root: Path, nodes: list[ProxyNode]) -> list[dic
     return groups
 
 
-def _build_shadowrocket_groups(project_root: Path, nodes: list[ProxyNode], *, traffic_saver: bool) -> list[dict[str, object]]:
+def _build_shadowrocket_groups(project_root: Path, nodes: list[ProxyNode]) -> list[dict[str, object]]:
     groups: list[dict[str, object]] = []
     for group in _build_mihomo_groups(project_root, nodes):
         if group["name"] == _g("RuleUpdate"):
@@ -383,6 +355,7 @@ def _build_mihomo_rules(project_root: Path, config: dict[str, object], overlay_n
 
 def _build_shadowrocket_rules(
     project_root: Path,
+    output_root: Path,
     public_base_url: str,
     shadow_rules: dict[str, BuiltRule],
     nodes: list[ProxyNode],
@@ -391,10 +364,10 @@ def _build_shadowrocket_rules(
     if not isinstance(payload, dict):
         raise TypeError("config/mihomo/rules.yaml must contain a mapping")
 
-    rendered: list[str] = []
+    rendered: list[str | ShadowrocketRuleSetRef] = []
     for raw_rule in _insert_proxy_server_direct_rules([str(item) for item in payload.get("rules", [])], nodes):
         rule = str(raw_rule)
-        parts = rule.split(",")
+        parts = split_rule_parts(rule)
         rule_type = parts[0]
         if rule_type in SHADOWROCKET_UNSUPPORTED_RULE_TYPES:
             continue
@@ -413,7 +386,7 @@ def _build_shadowrocket_rules(
                     continue
                 raise ValueError(f"Missing Shadowrocket rule artifact for rule-set: {rule_id}")
             policy = _resolve_policy(parts[2])
-            rendered.append(f"RULE-SET,{_provider_url(public_base_url, shadow_rules[rule_id].path)},{policy}")
+            rendered.append(ShadowrocketRuleSetRef(path=shadow_rules[rule_id].path, policy=policy))
             continue
         if rule_type in {"MATCH", "FINAL"}:
             if len(parts) < 2:
@@ -421,36 +394,122 @@ def _build_shadowrocket_rules(
             rendered.append(f"FINAL,{_resolve_policy(parts[1])}")
             continue
         if rule_type == "GEOSITE":
-            geosite_rule_ids = {
-                "private": "private",
-                "github": "github",
-                "google": "google",
-                "cn": "cn",
-                "geolocation-!cn": "geolocation_non_cn",
-            }
-            if len(parts) >= 3 and parts[1] in geosite_rule_ids:
-                rule_id = geosite_rule_ids[parts[1]]
+            if len(parts) >= 3 and parts[1] in SHADOWROCKET_GEOSITE_RULE_IDS:
+                rule_id = SHADOWROCKET_GEOSITE_RULE_IDS[parts[1]]
                 if rule_id not in shadow_rules:
                     raise ValueError(f"Missing Shadowrocket rule artifact for geosite: {parts[1]}")
                 policy = _resolve_policy(parts[2])
-                rendered.append(f"RULE-SET,{_provider_url(public_base_url, shadow_rules[rule_id].path)},{policy}")
+                rendered.append(ShadowrocketRuleSetRef(path=shadow_rules[rule_id].path, policy=policy))
                 continue
             continue
         if rule_type == "GEOIP":
-            geoip_rule_ids = {
-                "private": "lan_ip",
-                "CN": "cn_ip",
-            }
-            if len(parts) >= 3 and parts[1] in geoip_rule_ids:
-                rule_id = geoip_rule_ids[parts[1]]
+            if len(parts) >= 3 and parts[1] in SHADOWROCKET_GEOIP_RULE_IDS:
+                rule_id = SHADOWROCKET_GEOIP_RULE_IDS[parts[1]]
                 if rule_id not in shadow_rules:
                     raise ValueError(f"Missing Shadowrocket rule artifact for geoip: {parts[1]}")
                 policy = _resolve_policy(parts[2])
-                rendered.append(f"RULE-SET,{_provider_url(public_base_url, shadow_rules[rule_id].path)},{policy}")
+                rendered.append(ShadowrocketRuleSetRef(path=shadow_rules[rule_id].path, policy=policy))
                 continue
             continue
         raise ValueError(f"Unsupported rule type for Shadowrocket: {rule}")
-    return _dedupe(rendered)
+    return _dedupe(_bundle_shadowrocket_rule_set_refs(rendered, output_root=output_root, public_base_url=public_base_url))
+
+
+def _shadowrocket_bundle_name(index: int, policy: str) -> str:
+    stem = {
+        "DIRECT": "direct",
+        _g("AI"): "ai",
+        _g("GitHub"): "github",
+        _g("Google"): "google",
+        _g("Telegram"): "telegram",
+        _g("Apple"): "apple",
+        _g("Microsoft"): "microsoft",
+        _g("Streaming"): "streaming",
+        _g("Developer"): "developer",
+        _g("Download"): "download",
+        _g("PROXY"): "proxy",
+    }.get(policy, "policy")
+    return f"rules/shadowrocket/bundles/{index:02d}-{stem}.conf"
+
+
+def _read_shadowrocket_rule_file(output_root: Path, relative_path: str) -> list[str]:
+    path = output_root / relative_path
+    return [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+
+
+def _write_shadowrocket_bundle(output_root: Path, relative_path: str, source_paths: list[str]) -> None:
+    lines: list[str] = []
+    seen: set[str] = set()
+    for source_path in source_paths:
+        for line in _read_shadowrocket_rule_file(output_root, source_path):
+            if line not in seen:
+                lines.append(line)
+                seen.add(line)
+    destination = output_root / relative_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def _flush_shadowrocket_rule_set_group(
+    *,
+    output_root: Path,
+    public_base_url: str,
+    result: list[str],
+    group: list[ShadowrocketRuleSetRef],
+    bundle_index: int,
+) -> int:
+    if not group:
+        return bundle_index
+    if len(group) == 1:
+        item = group[0]
+        result.append(f"RULE-SET,{_provider_url(public_base_url, item.path)},{item.policy}")
+        return bundle_index
+    policy = group[0].policy
+    bundle_path = _shadowrocket_bundle_name(bundle_index, policy)
+    _write_shadowrocket_bundle(output_root, bundle_path, [item.path for item in group])
+    result.append(f"RULE-SET,{_provider_url(public_base_url, bundle_path)},{policy}")
+    return bundle_index + 1
+
+
+def _bundle_shadowrocket_rule_set_refs(
+    items: list[str | ShadowrocketRuleSetRef],
+    *,
+    output_root: Path,
+    public_base_url: str,
+) -> list[str]:
+    result: list[str] = []
+    group: list[ShadowrocketRuleSetRef] = []
+    bundle_index = 1
+    for item in items:
+        if isinstance(item, ShadowrocketRuleSetRef):
+            if group and group[-1].policy != item.policy:
+                bundle_index = _flush_shadowrocket_rule_set_group(
+                    output_root=output_root,
+                    public_base_url=public_base_url,
+                    result=result,
+                    group=group,
+                    bundle_index=bundle_index,
+                )
+                group = []
+            group.append(item)
+            continue
+        bundle_index = _flush_shadowrocket_rule_set_group(
+            output_root=output_root,
+            public_base_url=public_base_url,
+            result=result,
+            group=group,
+            bundle_index=bundle_index,
+        )
+        group = []
+        result.append(item)
+    _flush_shadowrocket_rule_set_group(
+        output_root=output_root,
+        public_base_url=public_base_url,
+        result=result,
+        group=group,
+        bundle_index=bundle_index,
+    )
+    return result
 
 
 def render_mihomo(
@@ -476,7 +535,7 @@ def render_mihomo(
     config["proxy-groups"] = _build_mihomo_groups(project_root, nodes)
     config["rules"] = _build_mihomo_rules(project_root, config, overlay_name, nodes)
     all_providers = _build_rule_providers(mihomo_rules, public_base_url)
-    referenced_provider_ids = _referenced_rule_provider_ids(config["rules"])
+    referenced_provider_ids = referenced_rule_provider_ids(config["rules"])
     config["rule-providers"] = {
         provider_id: provider
         for provider_id, provider in all_providers.items()
@@ -497,7 +556,6 @@ def render_shadowrocket(
     manifest: dict[str, list[BuiltRule]],
     node_source_audit: dict[str, object] | None = None,
     output_name: str = "shadowrocket.conf",
-    traffic_saver: bool = True,
 ) -> None:
     env = Environment(loader=FileSystemLoader(str(project_root / "templates")), autoescape=False, trim_blocks=True, lstrip_blocks=True)
     template = env.get_template("shadowrocket.conf.j2")
@@ -510,8 +568,8 @@ def render_shadowrocket(
         "node_source_comments": _format_node_source_comments(node_source_audit),
         "fallback_subscription_url": _provider_url(private_base_url, "shadowrocket-subscription.txt"),
         "proxy_lines": [node.to_shadowrocket_proxy_line() for node in shadow_nodes],
-        "groups": _build_shadowrocket_groups(project_root, shadow_nodes, traffic_saver=traffic_saver),
-        "rules": _build_shadowrocket_rules(project_root, public_base_url, shadow_rules, shadow_nodes),
+        "groups": _build_shadowrocket_groups(project_root, shadow_nodes),
+        "rules": _build_shadowrocket_rules(project_root, output_root, public_base_url, shadow_rules, shadow_nodes),
     }
     rendered = template.render(**context)
     (output_root / output_name).write_text(rendered + "\n", encoding="utf-8")
@@ -571,7 +629,7 @@ def prepare_public_pages(*, source_root: Path, output_root: Path, public_base_ur
     rules_source = source_root / "rules"
     if not rules_source.exists():
         raise FileNotFoundError(rules_source)
-    shutil.copytree(rules_source, output_root / "rules")
+    shutil.copytree(rules_source, output_root / "rules", ignore=shutil.ignore_patterns(".DS_Store"))
     (output_root / ".nojekyll").write_text("", encoding="utf-8")
     (output_root / PUBLIC_PAGES_MARKER).write_text(
         "Generated by mihomo-subscription-builder prepare-public-pages. Safe to replace.\n",

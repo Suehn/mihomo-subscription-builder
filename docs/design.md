@@ -60,6 +60,7 @@ P2 节点发布安全：规则公开，完整订阅走私有 URL
 - `config/mihomo/overlays/android.yaml`：Android 包名 / 进程覆盖层。
 - `sources/upstream.yaml`：规则源镜像和转换声明。
 - `config/route-expectations.yaml`：代表性域名路由期望。
+- `config/rule-coverage.yaml`：按类别维护的覆盖矩阵，用来保护 GitHub、AI、开发生态、国内镜像、国内媒体、流媒体和关键平台服务的当前路由体验。
 - `config/rule-audit-baseline.yaml`：关键 provider 的行数和类型漂移基线。
 
 生成后的 `dist/` 文件只作为包含节点的完整私有产物，不应手工编辑。`public-dist/` 是从 `dist/rules/` 派生出的公开 GitHub Pages 产物，只包含规则文件和公开索引，不包含节点。
@@ -270,7 +271,7 @@ DNS 以稳定国内 DoH 为主，不默认使用 `1.1.1.1` 或 `8.8.8.8` 这类�
 
 当前验证分四层：
 
-1. `python -m subscription_builder.cli validate`：检查 Mihomo/Shadowrocket 语法、策略组、provider 引用、规则顺序、IPv6 策略、路由期望、provider audit 和 provider drift baseline。
+1. `python -m subscription_builder.cli validate`：检查 Mihomo/Shadowrocket 语法、策略组、provider 引用、规则顺序、IPv6 策略、路由期望、类别覆盖矩阵、provider audit 和 provider drift baseline。
 2. `python -m pytest`：检查渲染器、逻辑规则解析、Shadowrocket 静态默认组、provider 拆分和路由模拟。
 3. `verge-mihomo -t`：对 `mihomo-full.yaml` 和 `mihomo-android.yaml` 做真实 Mihomo 配置检查。
 4. GitHub Actions：push 后重新生成并发布远端订阅。
@@ -284,6 +285,7 @@ DNS 以稳定国内 DoH 为主，不默认使用 `1.1.1.1` 或 `8.8.8.8` 这类�
 - 所有 profile 的 `⬇️ 下载` 必须代理优先。
 - `GitHub`、`AI`、`Google`、`Developer`、`Microsoft`、`Telegram`、`Streaming`、`Download` 不得包含 `DIRECT` 成员。
 - Developer hard pins 必须早于 Google / Microsoft / Download 的宽泛规则。
+- `config/rule-coverage.yaml` 中每个类别的代表域名必须在 Mihomo、Android Mihomo、Shadowrocket 和 Shadowrocket Strict 上命中同一预期策略；扩展覆盖时先补矩阵，再补规则。
 - split provider 不得出现 domain/IP 类型泄漏。
 - 关键 provider 必须落在 `config/rule-audit-baseline.yaml` 定义的行数范围内，并满足 domain/IP 类型约束。
 

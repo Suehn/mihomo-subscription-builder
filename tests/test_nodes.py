@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import base64
 
 import pytest
 
-from subscription_builder.cli import _fetch_configured_nodes
 from subscription_builder.config import NodeSourceSpec, ProjectConfig
 from subscription_builder.models import ProxyNode
 from subscription_builder.nodes import (
@@ -17,6 +15,7 @@ from subscription_builder.nodes import (
     split_links,
     write_node_source_audit,
 )
+from subscription_builder.pipeline import fetch_configured_nodes
 
 
 def test_decode_subscription_payload_accepts_base64_text() -> None:
@@ -211,7 +210,7 @@ proxies:
         rules=[],
     )
 
-    nodes, source_results = _fetch_configured_nodes(Namespace(upstream_url=None), config)
+    nodes, source_results = fetch_configured_nodes(config=config)
 
     assert [node.name for node in nodes] == ["MESL · 台湾 09 家宽"]
     assert source_results[0].source_id == "mesl"
@@ -222,7 +221,7 @@ def test_optional_node_source_fetch_failure_is_recorded_without_text_fallback(mo
         raise RuntimeError("Failed to fetch upstream subscription after retries: example.test (HTTP 522)")
 
     monkeypatch.setenv("PINCHE_SUB_URL", "https://example.test/sub")
-    monkeypatch.setattr("subscription_builder.cli.fetch_and_parse_node_source", fail_fetch)
+    monkeypatch.setattr("subscription_builder.pipeline.fetch_and_parse_node_source", fail_fetch)
     config = ProjectConfig(
         subscription_env_var="UPSTREAM_SUB_URL",
         node_sources=[
@@ -241,7 +240,7 @@ def test_optional_node_source_fetch_failure_is_recorded_without_text_fallback(mo
         rules=[],
     )
 
-    nodes, source_results = _fetch_configured_nodes(Namespace(upstream_url=None), config)
+    nodes, source_results = fetch_configured_nodes(config=config)
 
     assert nodes == []
     assert source_results[0].source_id == "pinche"

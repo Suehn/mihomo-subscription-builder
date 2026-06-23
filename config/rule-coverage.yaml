@@ -1,0 +1,108 @@
+categories:
+  - name: github
+    policy: "💻 GitHub"
+    domains:
+      - github.com
+      - github.io
+      - github.dev
+      - objects.githubusercontent.com
+      - release-assets.githubusercontent.com
+      - github-releases.githubusercontent.com
+      - ghcr.io
+
+  - name: ai
+    policy: "🤖 AI"
+    domains:
+      - openai.com
+      - api.openai.com
+      - chatgpt.com
+      - codex.openai.com
+      - anthropic.com
+      - claude.ai
+      - gemini.google.com
+
+  - name: developer-python-node
+    policy: "🛠 Developer"
+    domains:
+      - pypi.org
+      - files.pythonhosted.org
+      - repo.anaconda.com
+      - download.pytorch.org
+      - registry.npmjs.org
+      - registry.yarnpkg.com
+      - nodejs.org
+      - deno.land
+      - jsr.io
+
+  - name: developer-go-rust-containers
+    policy: "🛠 Developer"
+    domains:
+      - go.dev
+      - proxy.golang.org
+      - sum.golang.org
+      - crates.io
+      - static.rust-lang.org
+      - docker.io
+      - registry-1.docker.io
+      - auth.docker.io
+      - production.cloudflare.docker.com
+      - quay.io
+
+  - name: developer-ide-java-linux
+    policy: "🛠 Developer"
+    domains:
+      - marketplace.visualstudio.com
+      - vscode.dev
+      - download.jetbrains.com
+      - plugins.jetbrains.com
+      - repo.maven.apache.org
+      - repo1.maven.org
+      - plugins.gradle.org
+      - services.gradle.org
+      - archive.ubuntu.com
+      - deb.debian.org
+      - developer.hashicorp.com
+
+  - name: domestic-mirrors
+    policy: DIRECT
+    domains:
+      - mirrors.aliyun.com
+      - mirrors.cloud.tencent.com
+      - mirrors.huaweicloud.com
+      - mirrors.tuna.tsinghua.edu.cn
+      - mirrors.ustc.edu.cn
+      - registry.npmmirror.com
+      - goproxy.cn
+      - maven.aliyun.com
+      - registry.cn-hangzhou.aliyuncs.com
+
+  - name: domestic-media-and-apps
+    policy: DIRECT
+    domains:
+      - bilibili.com
+      - iqiyi.com
+      - v.qq.com
+      - youku.com
+      - douyin.com
+      - taobao.com
+
+  - name: streaming
+    policy: "📺 流媒体"
+    domains:
+      - youtube.com
+      - youtu.be
+      - googlevideo.com
+      - netflix.com
+      - spotify.com
+      - tiktok.com
+
+  - name: microsoft-apple-google-telegram
+    expectations:
+      office.com: "🪟 Microsoft"
+      live.com: "🪟 Microsoft"
+      sharepoint.com: "🪟 Microsoft"
+      icloud.com: "🍎 Apple"
+      apple.com: "🍎 Apple"
+      google.com: "🔎 Google"
+      api.telegram.org: "✈️ Telegram"
+      telegram.org: "✈️ Telegram"
