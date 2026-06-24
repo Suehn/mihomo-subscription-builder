@@ -127,6 +127,9 @@ def test_linuxdo_vless_node_source_renames_and_preserves_tls_fields() -> None:
     assert rendered["tls"] is True
     assert rendered["client-fingerprint"] == "chrome"
     assert rendered["alpn"] == ["h3", "h2", "http/1.1"]
+    assert node.to_shadowrocket_proxy_line().endswith(
+        "client-fingerprint=chrome,alpn=h3,h2,http/1.1,obfs=none"
+    )
     assert node.to_uri().endswith("#%E7%BE%8E%E5%9B%BDLinuxdo")
     assert "alpn=h3%2Ch2%2Chttp%2F1.1" in node.to_uri()
 

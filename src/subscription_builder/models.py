@@ -387,6 +387,8 @@ class ProxyNode:
                 parts.append("xtls=2")
             if self.client_fingerprint:
                 parts.append(f"client-fingerprint={self.client_fingerprint}")
+            if self.alpn:
+                parts.append(f"alpn={','.join(self.alpn)}")
             if self.reality_public_key:
                 parts.append(f"publicKey={self.reality_public_key}")
             if self.reality_short_id:
