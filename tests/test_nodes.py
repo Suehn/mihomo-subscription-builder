@@ -11,6 +11,7 @@ from subscription_builder.nodes import (
     NodeSourceResult,
     decode_subscription_payload,
     fetch_and_parse_node_source,
+    parse_node_source_text,
     parse_nodes_text,
     split_links,
     write_node_source_audit,
@@ -97,6 +98,37 @@ def test_vless_node_renders_for_mihomo() -> None:
         "public-key": "0123456789abcdefghijklmnopqrstuvwxyzABCDE",
         "short-id": "123456",
     }
+
+
+def test_linuxdo_vless_node_source_renames_and_preserves_tls_fields() -> None:
+    uri = (
+        "vless://00000000-0000-4000-8000-000000000001@linuxdo.example.test:16426"
+        "?type=tcp&encryption=none&security=tls&fp=chrome&alpn=h3%2Ch2%2Chttp%2F1.1#linuxdo"
+    )
+
+    result = parse_node_source_text(
+        raw_text=uri,
+        source_id="linuxdo",
+        label="Linuxdo",
+        group_policy="default",
+        include_name_regex=r"(?i)linuxdo|美国Linuxdo",
+        name_override="美国Linuxdo",
+        prefix_label=False,
+    )
+
+    node = result.nodes[0]
+    rendered = node.to_mihomo_proxy()
+    assert node.name == "美国Linuxdo"
+    assert node.source_id == "linuxdo"
+    assert rendered["type"] == "vless"
+    assert rendered["server"] == "linuxdo.example.test"
+    assert rendered["port"] == 16426
+    assert rendered["network"] == "tcp"
+    assert rendered["tls"] is True
+    assert rendered["client-fingerprint"] == "chrome"
+    assert rendered["alpn"] == ["h3", "h2", "http/1.1"]
+    assert node.to_uri().endswith("#%E7%BE%8E%E5%9B%BDLinuxdo")
+    assert "alpn=h3%2Ch2%2Chttp%2F1.1" in node.to_uri()
 
 
 def test_parse_mihomo_subscription_filters_metadata_and_keeps_supported_nodes() -> None:
@@ -214,6 +246,43 @@ proxies:
 
     assert [node.name for node in nodes] == ["MESL · 台湾 09 家宽"]
     assert source_results[0].source_id == "mesl"
+
+
+def test_configured_linuxdo_source_uses_text_env_and_exact_name(monkeypatch) -> None:
+    monkeypatch.delenv("LINUXDO_SUB_URL", raising=False)
+    monkeypatch.setenv(
+        "LINUXDO_SUB_TEXT",
+        (
+            "vless://00000000-0000-4000-8000-000000000001@linuxdo.example.test:16426"
+            "?type=tcp&security=tls&fp=chrome&alpn=h3%2Ch2%2Chttp%2F1.1#linuxdo"
+        ),
+    )
+    config = ProjectConfig(
+        subscription_env_var="UPSTREAM_SUB_URL",
+        node_sources=[
+            NodeSourceSpec(
+                source_id="linuxdo",
+                label="Linuxdo",
+                env_var="LINUXDO_SUB_URL",
+                text_env_var="LINUXDO_SUB_TEXT",
+                required=False,
+                group_policy="default",
+                include_name_regex=r"(?i)linuxdo|美国Linuxdo",
+                name_override="美国Linuxdo",
+                prefix_label=False,
+            )
+        ],
+        public_base_url_env="PUBLIC_BASE_URL",
+        private_base_url_env="PRIVATE_BASE_URL",
+        default_public_base_url="https://example.test",
+        user_agent="test",
+        rules=[],
+    )
+
+    nodes, source_results = fetch_configured_nodes(config=config)
+
+    assert [node.name for node in nodes] == ["美国Linuxdo"]
+    assert source_results[0].source_id == "linuxdo"
 
 
 def test_optional_node_source_fetch_failure_is_recorded_without_text_fallback(monkeypatch, capsys) -> None:

@@ -180,17 +180,29 @@ def parse_node_source_text(
     group_policy: str,
     include_name_contains: Iterable[str] | None = None,
     include_name_regex: str | None = None,
+    name_override: str | None = None,
+    prefix_label: bool = True,
     userinfo: dict[str, int] | None = None,
     metadata: dict[str, object] | None = None,
 ) -> NodeSourceResult:
-    nodes = [
-        node.apply_source(source_id=source_id, source_label=label, group_policy=group_policy)
-        for node in filter_nodes_by_name(
-            parse_nodes_text(raw_text),
-            include_name_contains=include_name_contains,
-            include_name_regex=include_name_regex,
+    parsed_nodes = filter_nodes_by_name(
+        parse_nodes_text(raw_text),
+        include_name_contains=include_name_contains,
+        include_name_regex=include_name_regex,
+    )
+    nodes = []
+    for node in parsed_nodes:
+        if name_override:
+            node.name = name_override.strip()
+            node.raw_uri = None
+        nodes.append(
+            node.apply_source(
+                source_id=source_id,
+                source_label=label,
+                group_policy=group_policy,
+                prefix_label=prefix_label,
+            )
         )
-    ]
     return NodeSourceResult(
         source_id=source_id,
         label=label,
@@ -210,6 +222,8 @@ def fetch_and_parse_node_source(
     group_policy: str,
     include_name_contains: Iterable[str] | None = None,
     include_name_regex: str | None = None,
+    name_override: str | None = None,
+    prefix_label: bool = True,
     metadata: dict[str, object] | None = None,
 ) -> NodeSourceResult:
     fetched = fetch_subscription(url, user_agent)
@@ -220,6 +234,8 @@ def fetch_and_parse_node_source(
         group_policy=group_policy,
         include_name_contains=include_name_contains,
         include_name_regex=include_name_regex,
+        name_override=name_override,
+        prefix_label=prefix_label,
         userinfo=fetched.userinfo,
         metadata=metadata,
     )

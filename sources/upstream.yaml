@@ -11,6 +11,17 @@ subscription:
       - 家宽
     metadata:
       note: Set MESL_SUB_URL locally or as a GitHub Secret; only nodes whose names contain 家宽 are imported.
+  - id: linuxdo
+    label: Linuxdo
+    env_var: LINUXDO_SUB_URL
+    text_env_var: LINUXDO_SUB_TEXT
+    required: false
+    group_policy: default
+    include_name_regex: (?i)linuxdo|美国Linuxdo
+    name_override: 美国Linuxdo
+    prefix_label: false
+    metadata:
+      note: Set LINUXDO_SUB_URL or LINUXDO_SUB_TEXT as a private secret; the node is renamed to 美国Linuxdo and is preferred by the AI fallback group.
   - id: pinche
     label: Pin-Che
     env_var: PINCHE_SUB_URL

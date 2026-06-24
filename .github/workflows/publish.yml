@@ -24,6 +24,8 @@ jobs:
       UPSTREAM_SUB_URL: ${{ secrets.UPSTREAM_SUB_URL }}
       MESL_SUB_URL: ${{ secrets.MESL_SUB_URL }}
       MESL_SUB_TEXT: ${{ secrets.MESL_SUB_TEXT }}
+      LINUXDO_SUB_URL: ${{ secrets.LINUXDO_SUB_URL }}
+      LINUXDO_SUB_TEXT: ${{ secrets.LINUXDO_SUB_TEXT }}
       PINCHE_SUB_URL: ${{ secrets.PINCHE_SUB_URL }}
       PUBLIC_BASE_URL: https://suehn.github.io/mihomo-subscription-builder
       PRIVATE_BASE_URL: ${{ secrets.PRIVATE_BASE_URL }}

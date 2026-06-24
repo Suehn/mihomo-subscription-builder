@@ -241,11 +241,18 @@ class ProxyNode:
             )
         raise ValueError(f"Unsupported Mihomo proxy type: {node_type}")
 
-    def apply_source(self, *, source_id: str, source_label: str, group_policy: str) -> "ProxyNode":
+    def apply_source(
+        self,
+        *,
+        source_id: str,
+        source_label: str,
+        group_policy: str,
+        prefix_label: bool = True,
+    ) -> "ProxyNode":
         self.source_id = source_id
         self.source_label = source_label
         self.source_group_policy = group_policy
-        if source_id != "primary" and not self.name.startswith(f"{source_label} · "):
+        if prefix_label and source_id != "primary" and not self.name.startswith(f"{source_label} · "):
             self.name = f"{source_label} · {self.name}"
         return self
 
@@ -320,6 +327,8 @@ class ProxyNode:
                 query["sni"] = self.servername
             if self.client_fingerprint:
                 query["fp"] = self.client_fingerprint
+            if self.alpn:
+                query["alpn"] = ",".join(self.alpn)
             if self.ws_host:
                 query["host"] = self.ws_host
             if self.ws_path:

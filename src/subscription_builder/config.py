@@ -32,6 +32,8 @@ class NodeSourceSpec:
     group_policy: str = "default"
     include_name_contains: list[str] = field(default_factory=list)
     include_name_regex: str | None = None
+    name_override: str | None = None
+    prefix_label: bool = True
     metadata: dict[str, object] = field(default_factory=dict)
 
 
@@ -106,6 +108,8 @@ def load_project_config(config_path: Path) -> ProjectConfig:
         include_name_contains=_string_list(subscription.get("include_name_contains")),
         include_name_regex=str(subscription["include_name_regex"]) if subscription.get("include_name_regex") else None,
         metadata=dict(subscription.get("metadata", {})),
+        name_override=str(subscription["name_override"]).strip() if subscription.get("name_override") else None,
+        prefix_label=bool(subscription.get("prefix_label", True)),
     )
     node_sources = [primary_source]
     for item in subscription.get("extra_sources") or []:
@@ -119,6 +123,8 @@ def load_project_config(config_path: Path) -> ProjectConfig:
                 group_policy=str(item.get("group_policy", "manual_only")),
                 include_name_contains=_string_list(item.get("include_name_contains")),
                 include_name_regex=str(item["include_name_regex"]) if item.get("include_name_regex") else None,
+                name_override=str(item["name_override"]).strip() if item.get("name_override") else None,
+                prefix_label=bool(item.get("prefix_label", True)),
                 metadata=dict(item.get("metadata", {})),
             )
         )
@@ -209,6 +215,10 @@ def _validate_node_source(raw_source: dict[str, object], label: str, *, required
         _expect_non_empty_string(raw_source.get("text_env_var"), f"{label}.text_env_var")
     _validate_string_list(raw_source.get("include_name_contains"), f"{label}.include_name_contains")
     _validate_regex(raw_source.get("include_name_regex"), f"{label}.include_name_regex")
+    if raw_source.get("name_override") is not None:
+        _expect_non_empty_string(raw_source.get("name_override"), f"{label}.name_override")
+    if raw_source.get("prefix_label") is not None and not isinstance(raw_source.get("prefix_label"), bool):
+        raise TypeError(f"{label}.prefix_label must be a boolean")
     if raw_source.get("metadata") is not None:
         _expect_mapping(raw_source.get("metadata"), f"{label}.metadata")
     return source_id

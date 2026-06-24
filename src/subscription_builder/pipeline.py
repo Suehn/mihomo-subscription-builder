@@ -123,6 +123,8 @@ def fetch_configured_nodes(
                     group_policy=source.group_policy,
                     include_name_contains=source.include_name_contains,
                     include_name_regex=source.include_name_regex,
+                    name_override=source.name_override,
+                    prefix_label=source.prefix_label,
                     metadata=source.metadata,
                 )
             except RuntimeError as exc:
@@ -145,6 +147,8 @@ def fetch_configured_nodes(
                 group_policy=source.group_policy,
                 include_name_contains=source.include_name_contains,
                 include_name_regex=source.include_name_regex,
+                name_override=source.name_override,
+                prefix_label=source.prefix_label,
                 metadata=metadata,
             )
 

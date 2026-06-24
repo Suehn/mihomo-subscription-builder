@@ -22,10 +22,15 @@ groups:
         - Suehn-Suehn2-260.97
         - Suehn-Suehn2
   - key: AI
-    type: select
+    type: fallback
     nodes_first: true
+    url: https://www.gstatic.com/generate_204
+    interval: 300
     include_nodes:
       preferred_name_contains:
+        - 美国Linuxdo
+        - Linuxdo
+        - linuxdo
         - 美国 10 家宽
         - 美国家宽10
         - 美国家宽 10

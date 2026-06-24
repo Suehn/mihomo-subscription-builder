@@ -33,9 +33,11 @@ P2 节点发布安全：规则公开，完整订阅走私有 URL
 
 `UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供。生成器解析 `vless://`、`vmess://`、`trojan://`、`ss://` URI 订阅，也支持 Mihomo / Clash YAML 里的 `proxies` 列表，并输出 Mihomo 和 Shadowrocket 可用的订阅文件。
 
-`MESL_SUB_URL` 是可选的家宽订阅源。生成器只导入原始节点名包含 `家宽` 的 MESL 节点，并把它们标记为 `manual_only` 作为来源元数据；策略组层不再按来源排除这些节点，而是把它们加入各个静态 `select` 组供手动选择。`🤖 AI` 组默认优先选择名称包含 `美国 10 家宽` 的节点，用来服务 ChatGPT、OpenAI、Codex、Claude、Anthropic、Gemini 和 Apple Intelligence 流量；如果这个节点不存在，AI 组仍保留其他全部节点和 `🚀 代理` 作为手动选择项。若 MESL 实时端点对 GitHub Actions 限频，可以通过私密 `MESL_SUB_TEXT` secret 提供只含家宽节点的缓存 YAML 后备，但节点内容仍不能提交到仓库。
+`MESL_SUB_URL` 是可选的家宽订阅源。生成器只导入原始节点名包含 `家宽` 的 MESL 节点，并把它们标记为 `manual_only` 作为来源元数据；策略组层不再按来源排除这些节点，而是把它们加入各个静态 `select` / `fallback` 组供手动选择或后备。`🤖 AI` 组在 `美国Linuxdo` 后使用 `美国 10 家宽` / `美国家宽10` 命名变体作为后备，用来服务 ChatGPT、OpenAI、Codex、Claude、Anthropic、Gemini 和 Apple Intelligence 流量。若 MESL 实时端点对 GitHub Actions 限频，可以通过私密 `MESL_SUB_TEXT` secret 提供只含家宽节点的缓存 YAML 后备，但节点内容仍不能提交到仓库。
 
-`PINCHE_SUB_URL` 是可选的第二订阅源。它同样被标记为 `manual_only`：节点会进入 Mihomo 输出，并显示在各个静态 `select` 组里，方便在客户端手动选择；但默认排序仍由 `🚀 代理` 和 `🤖 AI` 的 preferred token 控制，不会通过自动测速或故障转移自行切换。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留，方便看到剩余流量和到期时间。
+`LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` 是可选的私密单节点来源。生成器只匹配名称包含 `linuxdo` 或 `美国Linuxdo` 的节点，把它重命名为 `美国Linuxdo`，并作为 `🤖 AI` 组第一候选。真实 VLESS URI、UUID 和端口只应存在于本地环境变量或 GitHub Secrets，不进入仓库。
+
+`PINCHE_SUB_URL` 是可选的第二订阅源。它同样被标记为 `manual_only`：节点会进入 Mihomo 输出，并显示在各个静态 `select` 组和 `🤖 AI` fallback 组里。非 AI 默认排序仍由 `🚀 代理` 等静态组的 preferred token 控制，不会通过自动测速或故障转移自行切换；AI 组仅按明确配置的 fallback 顺序切换。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留，方便看到剩余流量和到期时间。
 
 生成器会基于所有实际输出节点的 `server` 字段生成前置 self-DIRECT 规则，避免节点入口本身被规则链再次代理。这个规则层保持最小粒度：IPv4 只生成 `/32`，IPv6 只生成 `/128`，域名只生成 exact `DOMAIN`；不会从 `sni`、`servername`、WebSocket `Host` 或其他伪装字段推导规则，避免把 CDN、伪装域名或普通站点扩大直连。
 
@@ -196,7 +198,7 @@ Mihomo 端：
 
 ```text
 🚀 代理：默认首选名称包含 Suehn-Suehn2-260.97 的主节点
-🤖 AI：默认首选名称包含 美国 10 家宽 的节点
+🤖 AI：fallback 组，默认首选 美国Linuxdo，失败后按顺序回到 美国 10 家宽 / 美国家宽10
 🌐 兜底：代理优先，多端一致
 ⬇️ 下载：代理优先
 GitHub / AI / Google / Developer / Telegram / Microsoft / Streaming：代理优先
@@ -206,7 +208,7 @@ GitHub / AI / Google / Developer / Telegram / Microsoft / Streaming：代理优�
 
 这个默认值的失败模式是可控的：少量未知国内域名可能先经历 CN IP 判断，国外未知流量不会直接落到 DIRECT。
 
-所有默认组都改为静态 `select`，不再使用 `url-test` 或 `fallback` 作为默认路径。这样默认出口不会因为测速、短暂失败或网络抖动自动换 IP；需要切换时由客户端里手动选择。`🤖 AI` 组通过排序优先 `美国 10 家宽`，然后列出其他全部节点和 `🚀 代理`，所以 AI 流量默认固定，但仍可手动改到任意节点。
+除 `🤖 AI` 外，默认组都保持静态 `select`，不使用 `url-test` 或 `fallback` 作为默认路径。这样普通默认出口不会因为测速、短暂失败或网络抖动自动换 IP；需要切换时由客户端里手动选择。`🤖 AI` 组按用户指定改为 `fallback`，通过排序优先 `美国Linuxdo`，再回到 `美国 10 家宽` / `美国家宽10`，然后列出其他全部节点和 `🚀 代理`。
 
 `GitHub`、`AI`、`Google`、`Developer`、`Microsoft`、`Telegram`、`Streaming`、`Download` 这些关键国外组不包含 `DIRECT` 成员。这是为了避免客户端 `store-selected` 把一次临时手动选择持久化成长期 DIRECT，导致 GitHub、AI、开发下载或国外大文件下载重新绕开代理。需要全局应急直连时，仍可以从 `🚀 代理` 或 `🌐 兜底` 这类更上层组操作。
 
@@ -332,6 +334,7 @@ iOS Shadowrocket: Final 代理优先，Download 代理优先
 iOS Shadowrocket Strict: 与默认 iOS 配置一致
 Developer: Go / npm / PyPI / Docker / Hugging Face / VS Code / Anaconda / PyTorch / HashiCorp 等显式 Developer
 关键国外组: GitHub / AI / Google / Developer / Microsoft / Telegram / Streaming / Download 不含 DIRECT
+AI 组: fallback 顺序为 美国Linuxdo -> 美国家宽10 变体 -> 其他节点 -> 代理组
 Download: 国内候选 DIRECT，国外候选 Download 代理组
 IPv6: 关闭
 发布: GitHub Actions 成功；legacy 模式下旧订阅 URL 不断，split-private 模式下公开 Pages 只含规则、私有 URL 可拉取完整订阅

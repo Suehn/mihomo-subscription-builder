@@ -20,7 +20,10 @@ through the private `UPSTREAM_SUB_URL` secret.
 
 - Pulls the upstream subscription from `UPSTREAM_SUB_URL`
 - Optionally merges `MESL_SUB_URL` home broadband nodes whose names contain
-  `家宽` for static AI defaults and manual selection in every group
+  `家宽` for AI fallback and manual selection in every group
+- Optionally merges a private `LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` single
+  node, renames it to `美国Linuxdo`, and prefers it for AI traffic with
+  `美国家宽10` as the fallback candidate
 - Optionally merges a secondary `PINCHE_SUB_URL` subscription as manual-only
   nodes
 - Decodes Base64 subscriptions automatically
@@ -144,19 +147,22 @@ Mihomo and Shadowrocket share the same group names where possible:
   candidates are handled by earlier domestic mirrors and Mihomo's
   `AND(download,GEOIP,CN)` split, not by making the whole download group DIRECT.
 - `🌐 兜底`: defaults proxy-first on Mihomo, Android Mihomo, and Shadowrocket.
-- `🤖 AI`: a static selector, not a health-check or failover group. It defaults
-  to the first node whose name contains `美国 10 家宽`, with alternate name
-  tokens for compact naming, then exposes all other nodes and `🚀 代理` for
-  manual selection. ChatGPT, OpenAI, Codex, Claude, Anthropic, Gemini, and Apple
-  Intelligence rules route here.
+- `🤖 AI`: a small health-check fallback group for AI traffic. It prefers
+  `美国Linuxdo`, then `美国 10 家宽` / `美国家宽10` naming variants, then the
+  remaining nodes and `🚀 代理`. ChatGPT, OpenAI, Codex, Claude, Anthropic,
+  Gemini, and Apple Intelligence rules route here.
 
 Optional secondary node sources are explicit:
 
 - `MESL_SUB_URL` is marked `manual_only` but filtered to names containing
   `家宽`. Those nodes are rendered into every static select group for manual
-  selection. The AI group prefers `美国 10 家宽` when present. If the live MESL
-  endpoint rate-limits a build, `MESL_SUB_TEXT` can provide a private cached
-  home-node YAML fallback without committing node data.
+  selection. The AI group uses `美国家宽10` as the fallback candidate after
+  `美国Linuxdo`. If the live MESL endpoint rate-limits a build,
+  `MESL_SUB_TEXT` can provide a private cached home-node YAML fallback without
+  committing node data.
+- `LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` is an optional private single-node
+  source. The node is filtered by `linuxdo` / `美国Linuxdo`, renamed to
+  `美国Linuxdo`, and injected through secrets rather than committed to source.
 - `PINCHE_SUB_URL` remains manual-only. Those nodes are rendered so they can be
   selected manually from the static select groups, without becoming a separate
   automatic default path.
@@ -321,6 +327,7 @@ pip install -e '.[dev]'
 export UPSTREAM_SUB_URL="https://example.com/sub/your-token"
 export MESL_SUB_URL="https://example.com/mesl/your-token" # optional; imports names containing 家宽
 export MESL_SUB_TEXT="$(cat /private/path/mesl-home-only.yaml)" # optional fallback
+export LINUXDO_SUB_TEXT="$(cat /private/path/linuxdo-vless.txt)" # optional; exact node text or YAML
 export PINCHE_SUB_URL="https://example.com/pcdy/your-token" # optional, manual-only
 export PUBLIC_BASE_URL="https://suehn.github.io/mihomo-subscription-builder"
 export PRIVATE_BASE_URL="https://private.example.com/mihomo-subscription-builder"
@@ -358,11 +365,16 @@ Create the required repository secret:
 - `UPSTREAM_SUB_URL`
 - `MESL_SUB_URL`: optional MESL subscription. When present, only nodes whose
   names contain `家宽` are imported. They remain manual-only as source metadata,
-  but static select groups expose them for manual choice. `🤖 AI` prefers
-  `美国 10 家宽` when present, then keeps the rest of the nodes available.
+  but static select groups expose them for manual choice. `🤖 AI` uses
+  `美国家宽10` as the fallback candidate after `美国Linuxdo`, then keeps the rest
+  of the nodes available.
 - `MESL_SUB_TEXT`: optional private cached MESL home-node YAML fallback. Use it
   when the live MESL endpoint rate-limits GitHub Actions; it must stay in
   GitHub Secrets and must not be committed.
+- `LINUXDO_SUB_URL` or `LINUXDO_SUB_TEXT`: optional private Linuxdo node source.
+  Store the VLESS URI or a one-node YAML subscription in GitHub Secrets. The
+  generator renames the matched node to `美国Linuxdo` and makes it the first AI
+  fallback candidate.
 - `PINCHE_SUB_URL`: optional secondary subscription. When present, its nodes are
   included in Mihomo as manual-only `Pin-Che` nodes and exposed in static select
   groups for manual choice. Its node `server` entries are also covered by exact
