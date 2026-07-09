@@ -145,6 +145,38 @@ jobs:
               firewall=firewalld-http-blocked
             fi
           fi
+          sudo_access=no
+          if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+            sudo_access=yes
+            iptables_command=""
+            if command -v iptables >/dev/null 2>&1; then
+              iptables_command="$(command -v iptables)"
+            elif test -x /usr/sbin/iptables; then
+              iptables_command=/usr/sbin/iptables
+            fi
+            if test "$firewall" = unknown && test -n "$iptables_command"; then
+              input_rules="$(sudo -n "$iptables_command" -S INPUT 2>/dev/null || true)"
+              if printf '%s\n' "$input_rules" | grep -Eq -- '-p tcp .*--dport 80 .*-(j|g) ACCEPT'; then
+                firewall=iptables-http-allowed
+              elif printf '%s\n' "$input_rules" | grep -q '^-P INPUT ACCEPT'; then
+                firewall=iptables-input-accept
+              elif printf '%s\n' "$input_rules" | grep -q '^-P INPUT DROP'; then
+                firewall=iptables-http-blocked
+              else
+                firewall=iptables-unresolved
+              fi
+            fi
+            if test "$firewall" = unknown && command -v nft >/dev/null 2>&1; then
+              nft_rules="$(sudo -n nft list ruleset 2>/dev/null || true)"
+              if printf '%s\n' "$nft_rules" | grep -Eq 'tcp dport 80 .*accept'; then
+                firewall=nft-http-allowed
+              elif printf '%s\n' "$nft_rules" | grep -Eq 'hook input .*policy drop'; then
+                firewall=nft-http-blocked
+              else
+                firewall=nft-unresolved
+              fi
+            fi
+          fi
           http=unavailable
           https=unavailable
           if command -v curl >/dev/null 2>&1; then
@@ -160,8 +192,8 @@ jobs:
               "http://127.0.0.1${http_path}/mihomo-full.yaml" 2>/dev/null || true)"
             artifact_http="${artifact_http:-000}"
           fi
-          printf 'files=%s services=%s listeners=%s public_http=%s nginx_mapping=%s firewall=%s localhost_http=%s localhost_https=%s artifact_http=%s\n' \
-            "$files" "$services" "$listeners" "$public_http_listener" "$nginx_mapping" "$firewall" "$http" "$https" "$artifact_http"
+          printf 'files=%s services=%s listeners=%s public_http=%s nginx_mapping=%s firewall=%s sudo=%s localhost_http=%s localhost_https=%s artifact_http=%s\n' \
+            "$files" "$services" "$listeners" "$public_http_listener" "$nginx_mapping" "$firewall" "$sudo_access" "$http" "$https" "$artifact_http"
           REMOTE_HEALTH
           )"
           echo "::notice title=Private web health::$health"
