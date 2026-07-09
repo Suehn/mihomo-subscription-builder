@@ -124,6 +124,27 @@ jobs:
           if command -v grep >/dev/null 2>&1 && grep -R -F -q -- "$root" /etc/nginx 2>/dev/null; then
             nginx_mapping=yes
           fi
+          firewall=unknown
+          if command -v ufw >/dev/null 2>&1; then
+            ufw_status="$(sudo -n ufw status 2>/dev/null || ufw status 2>/dev/null || true)"
+            if printf '%s\n' "$ufw_status" | grep -q '^Status: inactive'; then
+              firewall=ufw-inactive
+            elif printf '%s\n' "$ufw_status" | grep -q '^Status: active'; then
+              if printf '%s\n' "$ufw_status" | grep -Eq '^80(/tcp)?[[:space:]]+ALLOW'; then
+                firewall=ufw-http-allowed
+              else
+                firewall=ufw-http-blocked
+              fi
+            else
+              firewall=ufw-unreadable
+            fi
+          elif command -v firewall-cmd >/dev/null 2>&1; then
+            if firewall-cmd --quiet --query-service=http 2>/dev/null; then
+              firewall=firewalld-http-allowed
+            else
+              firewall=firewalld-http-blocked
+            fi
+          fi
           http=unavailable
           https=unavailable
           if command -v curl >/dev/null 2>&1; then
@@ -139,8 +160,8 @@ jobs:
               "http://127.0.0.1${http_path}/mihomo-full.yaml" 2>/dev/null || true)"
             artifact_http="${artifact_http:-000}"
           fi
-          printf 'files=%s services=%s listeners=%s public_http=%s nginx_mapping=%s localhost_http=%s localhost_https=%s artifact_http=%s\n' \
-            "$files" "$services" "$listeners" "$public_http_listener" "$nginx_mapping" "$http" "$https" "$artifact_http"
+          printf 'files=%s services=%s listeners=%s public_http=%s nginx_mapping=%s firewall=%s localhost_http=%s localhost_https=%s artifact_http=%s\n' \
+            "$files" "$services" "$listeners" "$public_http_listener" "$nginx_mapping" "$firewall" "$http" "$https" "$artifact_http"
           REMOTE_HEALTH
           )"
           echo "::notice title=Private web health::$health"
