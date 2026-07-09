@@ -98,7 +98,8 @@ jobs:
           verify_dir="$(mktemp -d)"
           private_base_url="${EFFECTIVE_PRIVATE_BASE_URL%/}"
           for artifact in mihomo-full.yaml mihomo-android.yaml mihomo-generic.yaml shadowrocket.conf shadowrocket-subscription.txt; do
-            curl --fail --silent --show-error --location --retry 6 --retry-all-errors \
+            echo "Checking $artifact"
+            curl --ipv4 --http1.1 --fail --silent --show-error --location --retry 6 --retry-all-errors \
               --connect-timeout 15 --max-time 60 \
               "$private_base_url/$artifact?build=$GITHUB_SHA" -o "$verify_dir/$artifact"
             test -s "$verify_dir/$artifact"
