@@ -93,6 +93,23 @@ jobs:
           rsync -az --delete -e "$SSH_COMMAND" dist/ "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST:$PRIVATE_SSH_PATH/"
           private_http_host="$(python -c 'import os, urllib.parse; print(urllib.parse.urlsplit(os.environ["EFFECTIVE_PRIVATE_BASE_URL"]).hostname or "")')"
           private_http_path="$(python -c 'import os, urllib.parse; print(urllib.parse.urlsplit(os.environ["EFFECTIVE_PRIVATE_BASE_URL"]).path.rstrip("/"))')"
+          deploy_host_match="$(HTTP_HOST="$private_http_host" python - <<'PY'
+          import os
+          import socket
+
+          http_host = os.environ.get("HTTP_HOST", "")
+          ssh_host = os.environ.get("PRIVATE_SSH_HOST", "")
+          if http_host == ssh_host and http_host:
+              print("same-name")
+          else:
+              try:
+                  http_addresses = {item[4][0] for item in socket.getaddrinfo(http_host, None)}
+                  ssh_addresses = {item[4][0] for item in socket.getaddrinfo(ssh_host, None)}
+                  print("same-ip" if http_addresses & ssh_addresses else "different")
+              except OSError:
+                  print("unresolved")
+          PY
+          )"
           health="$(
             ssh "${SSH_OPTIONS[@]}" "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST" bash -s -- \
               "$PRIVATE_SSH_PATH" "$private_http_host" "$private_http_path" <<'REMOTE_HEALTH'
@@ -185,6 +202,17 @@ jobs:
             http="${http:-000}"
             https="${https:-000}"
           fi
+          egress_match=unavailable
+          if command -v curl >/dev/null 2>&1; then
+            egress_ip="$(curl --ipv4 --silent --show-error --connect-timeout 5 --max-time 10 https://api.ipify.org 2>/dev/null || true)"
+            if test -n "$egress_ip"; then
+              if test "$egress_ip" = "$http_host"; then
+                egress_match=yes
+              else
+                egress_match=no
+              fi
+            fi
+          fi
           artifact_http=unavailable
           if command -v curl >/dev/null 2>&1; then
             artifact_http="$(curl --ipv4 --http1.1 --silent --output /dev/null --write-out '%{http_code}' \
@@ -192,11 +220,11 @@ jobs:
               "http://127.0.0.1${http_path}/mihomo-full.yaml" 2>/dev/null || true)"
             artifact_http="${artifact_http:-000}"
           fi
-          printf 'files=%s services=%s listeners=%s public_http=%s nginx_mapping=%s firewall=%s sudo=%s localhost_http=%s localhost_https=%s artifact_http=%s\n' \
-            "$files" "$services" "$listeners" "$public_http_listener" "$nginx_mapping" "$firewall" "$sudo_access" "$http" "$https" "$artifact_http"
+          printf 'files=%s services=%s listeners=%s public_http=%s nginx_mapping=%s firewall=%s sudo=%s egress_match=%s localhost_http=%s localhost_https=%s artifact_http=%s\n' \
+            "$files" "$services" "$listeners" "$public_http_listener" "$nginx_mapping" "$firewall" "$sudo_access" "$egress_match" "$http" "$https" "$artifact_http"
           REMOTE_HEALTH
           )"
-          echo "::notice title=Private web health::$health"
+          echo "::notice title=Private web health::deploy_host_match=$deploy_host_match $health"
 
       - name: Verify private subscription URLs
         if: env.PRIVATE_DEPLOY_ENABLED == 'true'
