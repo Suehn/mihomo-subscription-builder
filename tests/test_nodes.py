@@ -11,6 +11,7 @@ from subscription_builder.nodes import (
     NodeSourceResult,
     decode_subscription_payload,
     fetch_and_parse_node_source,
+    normalize_nodes,
     parse_node_source_text,
     parse_nodes_text,
     split_links,
@@ -189,6 +190,38 @@ proxies:
     )
 
 
+def test_parse_hysteria2_and_anytls_uri_subscriptions() -> None:
+    nodes = parse_nodes_text(
+        "hy2://hy-secret@hy.example.test:8443?sni=hy.example.com&insecure=1#Hong%20Kong%20HY2\n"
+        "anytls://any-secret@any.example.test:443?sni=any.example.com&fp=chrome&alpn=h2%2Ch3#Singapore%20AnyTLS"
+    )
+
+    assert [node.type for node in nodes] == ["hysteria2", "anytls"]
+    assert nodes[0].password == "hy-secret"
+    assert nodes[0].servername == "hy.example.com"
+    assert nodes[0].skip_cert_verify is True
+    assert nodes[1].password == "any-secret"
+    assert nodes[1].client_fingerprint == "chrome"
+    assert nodes[1].alpn == ["h2", "h3"]
+
+
+def test_normalize_nodes_deduplicates_connections_and_makes_names_unique() -> None:
+    first = ProxyNode.from_uri(
+        "vless://00000000-0000-4000-8000-000000000001@a.example.test:443?security=tls#Same"
+    )
+    exact_duplicate = ProxyNode.from_uri(
+        "vless://00000000-0000-4000-8000-000000000001@a.example.test:443?security=tls#Alias"
+    )
+    name_collision = ProxyNode.from_uri(
+        "vless://00000000-0000-4000-8000-000000000002@b.example.test:443?security=tls#Same"
+    )
+
+    normalized = normalize_nodes([first, exact_duplicate, name_collision])
+
+    assert [node.name for node in normalized] == ["Same", "Same · 2"]
+    assert normalized[1].to_uri().endswith("#Same%20%C2%B7%202")
+
+
 def test_node_source_can_import_only_home_broadband_nodes(monkeypatch) -> None:
     payload = """
 proxies:
@@ -249,6 +282,45 @@ proxies:
 
     assert [node.name for node in nodes] == ["MESL · 台湾 09 家宽"]
     assert source_results[0].source_id == "mesl"
+
+
+def test_primary_source_can_merge_multiple_subscription_urls(monkeypatch) -> None:
+    monkeypatch.setenv("UPSTREAM_SUB_URL", "https://one.example.test/sub")
+    monkeypatch.setenv(
+        "UPSTREAM_SUB_URLS",
+        "https://one.example.test/sub\nhttps://two.example.test/sub\n",
+    )
+
+    def fake_fetch_subscription(url: str, user_agent: str) -> FetchedSubscription:
+        uuid = "00000000-0000-4000-8000-000000000001" if "one." in url else "00000000-0000-4000-8000-000000000002"
+        return FetchedSubscription(
+            text=f"vless://{uuid}@proxy.example.test:443?security=tls#Shared%20Name",
+            userinfo={},
+        )
+
+    monkeypatch.setattr("subscription_builder.nodes.fetch_subscription", fake_fetch_subscription)
+    config = ProjectConfig(
+        subscription_env_var="UPSTREAM_SUB_URL",
+        node_sources=[
+            NodeSourceSpec(
+                source_id="primary",
+                label="Primary",
+                env_var="UPSTREAM_SUB_URL",
+                urls_env_var="UPSTREAM_SUB_URLS",
+            )
+        ],
+        public_base_url_env="PUBLIC_BASE_URL",
+        private_base_url_env="PRIVATE_BASE_URL",
+        default_public_base_url="https://example.test",
+        user_agent="test",
+        rules=[],
+    )
+
+    nodes, source_results = fetch_configured_nodes(config=config)
+
+    assert [node.name for node in nodes] == ["Shared Name", "Primary 2 · Shared Name"]
+    assert [result.source_id for result in source_results] == ["primary", "primary_2"]
+    assert nodes[1].to_uri().endswith("#Primary%202%20%C2%B7%20Shared%20Name")
 
 
 def test_configured_linuxdo_source_uses_text_env_and_exact_name(monkeypatch) -> None:

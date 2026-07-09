@@ -35,6 +35,7 @@ class NodeSourceSpec:
     name_override: str | None = None
     prefix_label: bool = True
     metadata: dict[str, object] = field(default_factory=dict)
+    urls_env_var: str | None = None
 
 
 @dataclass(slots=True)
@@ -110,6 +111,7 @@ def load_project_config(config_path: Path) -> ProjectConfig:
         metadata=dict(subscription.get("metadata", {})),
         name_override=str(subscription["name_override"]).strip() if subscription.get("name_override") else None,
         prefix_label=bool(subscription.get("prefix_label", True)),
+        urls_env_var=str(subscription["urls_env_var"]) if subscription.get("urls_env_var") else None,
     )
     node_sources = [primary_source]
     for item in subscription.get("extra_sources") or []:
@@ -126,6 +128,7 @@ def load_project_config(config_path: Path) -> ProjectConfig:
                 name_override=str(item["name_override"]).strip() if item.get("name_override") else None,
                 prefix_label=bool(item.get("prefix_label", True)),
                 metadata=dict(item.get("metadata", {})),
+                urls_env_var=str(item["urls_env_var"]) if item.get("urls_env_var") else None,
             )
         )
 
@@ -213,6 +216,8 @@ def _validate_node_source(raw_source: dict[str, object], label: str, *, required
         _expect_non_empty_string(raw_source.get("env_var"), f"{label}.env_var")
     if raw_source.get("text_env_var") is not None:
         _expect_non_empty_string(raw_source.get("text_env_var"), f"{label}.text_env_var")
+    if raw_source.get("urls_env_var") is not None:
+        _expect_non_empty_string(raw_source.get("urls_env_var"), f"{label}.urls_env_var")
     _validate_string_list(raw_source.get("include_name_contains"), f"{label}.include_name_contains")
     _validate_regex(raw_source.get("include_name_regex"), f"{label}.include_name_regex")
     if raw_source.get("name_override") is not None:

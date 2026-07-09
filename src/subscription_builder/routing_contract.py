@@ -3,6 +3,7 @@ from __future__ import annotations
 
 GROUP_LABELS = {
     "PROXY": "🚀 代理",
+    "Fallback": "🔁 故障转移",
     "RuleUpdate": "🔄 规则更新",
     "AI": "🤖 AI",
     "GitHub": "💻 GitHub",
@@ -40,6 +41,31 @@ SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_MEMBER = [
     "Telegram",
     "Streaming",
     "Download",
+]
+SHADOWROCKET_GROUPS_FOLLOW_PROXY = [
+    "GitHub",
+    "AI",
+    "Google",
+    "Developer",
+    "Apple",
+    "Microsoft",
+    "Telegram",
+    "Streaming",
+    "Download",
+    "Final",
+]
+SHADOWROCKET_SELECT_GROUPS_INCLUDE_ALL_NODES = [
+    "PROXY",
+    "GitHub",
+    "AI",
+    "Google",
+    "Developer",
+    "Apple",
+    "Microsoft",
+    "Telegram",
+    "Streaming",
+    "Download",
+    "Final",
 ]
 SHADOWROCKET_REQUIRED_RULE_FRAGMENTS = [
     "DOMAIN-SUFFIX,github.com",

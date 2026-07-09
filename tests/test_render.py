@@ -248,34 +248,34 @@ def test_mihomo_uses_domestic_doh_and_filters_local_wpad(tmp_path: Path) -> None
     assert config["rules"][0] == "DOMAIN,wpad,REJECT"
 
 
-def test_mihomo_groups_keep_static_defaults_except_ai_fallback(tmp_path: Path) -> None:
+def test_mihomo_groups_follow_proxy_and_expose_every_node(tmp_path: Path) -> None:
     config = _render_config(tmp_path)
     groups_by_name = {group["name"]: group for group in config["proxy-groups"]}
     groups = {name: group["proxies"] for name, group in groups_by_name.items()}
 
     assert config["proxy-groups"][0]["name"] == "🚀 代理"
-    assert all(
-        group["type"] == "select"
-        for group in config["proxy-groups"]
-        if group["name"] != "🤖 AI"
-    )
-    assert groups_by_name["🤖 AI"]["type"] == "fallback"
-    assert groups_by_name["🤖 AI"]["url"] == "https://www.gstatic.com/generate_204"
-    assert groups_by_name["🤖 AI"]["interval"] == 300
-    assert "🔁 故障转移" not in groups
+    assert all(group["type"] == "select" for group in config["proxy-groups"] if group["name"] != "🔁 故障转移")
+    assert groups_by_name["🔁 故障转移"]["type"] == "fallback"
+    assert groups_by_name["🔁 故障转移"]["url"] == "https://www.gstatic.com/generate_204"
+    assert groups_by_name["🔁 故障转移"]["interval"] == 300
+    assert groups_by_name["🔁 故障转移"]["lazy"] is True
     assert "⚡ 自动选择" not in groups
     assert "🧭 手动选择" not in groups
     assert "🤖 AI 故障转移" not in groups
     assert "🤖 AI 自动选择" not in groups
-    assert groups["🚀 代理"] == ["node-a", "DIRECT"]
-    assert groups["🤖 AI"] == ["node-a", "🚀 代理"]
-    assert groups["🪟 Microsoft"] == ["🚀 代理", "node-a"]
-    assert groups["🔎 Google"] == ["🚀 代理", "node-a"]
-    assert groups["💻 GitHub"] == ["🚀 代理", "node-a"]
-    assert groups["🛠 Developer"] == ["🚀 代理", "node-a"]
-    assert groups["⬇️ 下载"] == ["🚀 代理", "node-a"]
-    assert groups["🌐 兜底"] == ["🚀 代理", "DIRECT", "node-a"]
-    assert groups["🍎 Apple"] == ["DIRECT", "🚀 代理", "node-a"]
+    assert groups["🚀 代理"] == ["node-a", "🔁 故障转移", "DIRECT"]
+    assert groups["🔁 故障转移"] == ["node-a"]
+    assert groups["🤖 AI"] == ["🚀 代理", "🔁 故障转移", "node-a"]
+    assert groups["🪟 Microsoft"] == ["🚀 代理", "🔁 故障转移", "node-a"]
+    assert groups["🔎 Google"] == ["🚀 代理", "🔁 故障转移", "node-a"]
+    assert groups["💻 GitHub"] == ["🚀 代理", "🔁 故障转移", "node-a"]
+    assert groups["🛠 Developer"] == ["🚀 代理", "🔁 故障转移", "node-a"]
+    assert groups["⬇️ 下载"] == ["🚀 代理", "🔁 故障转移", "node-a"]
+    assert groups["🌐 兜底"] == ["🚀 代理", "🔁 故障转移", "DIRECT", "node-a"]
+    assert groups["🍎 Apple"] == ["🚀 代理", "🔁 故障转移", "DIRECT", "node-a"]
+    for group in config["proxy-groups"]:
+        if group["type"] == "select":
+            assert "node-a" in group["proxies"]
     for group_name in ["💻 GitHub", "🤖 AI", "🔎 Google", "🛠 Developer", "🪟 Microsoft", "✈️ Telegram", "📺 流媒体", "⬇️ 下载"]:
         assert "DIRECT" not in groups[group_name]
 
@@ -433,25 +433,26 @@ def test_shadowrocket_disables_ipv6_and_uses_safe_group_defaults(tmp_path: Path)
     assert "https://example.test/sub/shadowrocket-subscription.txt" not in text
     assert "1.1.1.1" not in text
     assert "8.8.8.8" not in text
-    assert group_lines[0] == "🚀 代理 = select,node-a,DIRECT"
-    assert next(line for line in lines if line.startswith("🚀 代理 = ")) == "🚀 代理 = select,node-a,DIRECT"
+    assert group_lines[0] == "🚀 代理 = select,node-a,🔁 故障转移,DIRECT"
+    assert next(line for line in lines if line.startswith("🚀 代理 = ")) == "🚀 代理 = select,node-a,🔁 故障转移,DIRECT"
     assert not any("url-test" in line for line in group_lines)
-    assert "🤖 AI = fallback,node-a,🚀 代理,url=https://www.gstatic.com/generate_204,interval=300" in lines
-    assert "🔎 Google = select,🚀 代理,node-a" in lines
-    assert "💻 GitHub = select,🚀 代理,node-a" in lines
-    assert "🛠 Developer = select,🚀 代理,node-a" in lines
-    assert "📺 流媒体 = select,🚀 代理,node-a" in lines
-    assert "⬇️ 下载 = select,🚀 代理,node-a" in lines
-    assert "🌐 兜底 = select,🚀 代理,DIRECT,node-a" in lines
+    assert "🔁 故障转移 = fallback,node-a,url=https://www.gstatic.com/generate_204,interval=300" in lines
+    assert "🤖 AI = select,🚀 代理,🔁 故障转移,node-a" in lines
+    assert "🔎 Google = select,🚀 代理,🔁 故障转移,node-a" in lines
+    assert "💻 GitHub = select,🚀 代理,🔁 故障转移,node-a" in lines
+    assert "🛠 Developer = select,🚀 代理,🔁 故障转移,node-a" in lines
+    assert "📺 流媒体 = select,🚀 代理,🔁 故障转移,node-a" in lines
+    assert "⬇️ 下载 = select,🚀 代理,🔁 故障转移,node-a" in lines
+    assert "🌐 兜底 = select,🚀 代理,🔁 故障转移,DIRECT,node-a" in lines
 
     strict_text = _render_shadowrocket(tmp_path, output_name="shadowrocket-strict.conf")
     strict_lines = strict_text.splitlines()
-    assert "⬇️ 下载 = select,🚀 代理,node-a" in strict_lines
-    assert "🌐 兜底 = select,🚀 代理,DIRECT,node-a" in strict_lines
-    assert "🤖 AI = fallback,node-a,🚀 代理,url=https://www.gstatic.com/generate_204,interval=300" in strict_lines
+    assert "⬇️ 下载 = select,🚀 代理,🔁 故障转移,node-a" in strict_lines
+    assert "🌐 兜底 = select,🚀 代理,🔁 故障转移,DIRECT,node-a" in strict_lines
+    assert "🤖 AI = select,🚀 代理,🔁 故障转移,node-a" in strict_lines
 
 
-def test_ai_fallback_prefers_linuxdo_then_us_home_broadband(tmp_path: Path) -> None:
+def test_global_and_us_fallback_groups_include_expected_nodes(tmp_path: Path) -> None:
     linuxdo_node = ProxyNode(
         name="美国Linuxdo",
         type="vless",
@@ -489,9 +490,19 @@ def test_ai_fallback_prefers_linuxdo_then_us_home_broadband(tmp_path: Path) -> N
     config = yaml.safe_load((tmp_path / "mihomo-full.yaml").read_text(encoding="utf-8"))
     groups = {group["name"]: group for group in config["proxy-groups"]}
 
-    assert groups["🤖 AI"]["type"] == "fallback"
-    assert groups["🤖 AI"]["proxies"][:3] == ["美国Linuxdo", "MESL · 美国家宽10", "node-a"]
-    assert groups["🤖 AI"]["proxies"][-1] == "🚀 代理"
+    assert groups["🔁 故障转移"]["type"] == "fallback"
+    assert groups["🔁 故障转移"]["proxies"] == ["node-a", "MESL · 美国家宽10", "美国Linuxdo"]
+    assert groups["🇺🇸 美国故障转移"]["type"] == "fallback"
+    assert groups["🇺🇸 美国故障转移"]["proxies"] == ["MESL · 美国家宽10", "美国Linuxdo"]
+    assert groups["🤖 AI"]["type"] == "select"
+    assert groups["🤖 AI"]["proxies"] == [
+        "🚀 代理",
+        "🔁 故障转移",
+        "🇺🇸 美国故障转移",
+        "node-a",
+        "MESL · 美国家宽10",
+        "美国Linuxdo",
+    ]
 
 
 def test_manual_only_nodes_are_visible_in_static_select_groups(tmp_path: Path) -> None:
@@ -550,12 +561,20 @@ def test_manual_only_nodes_are_visible_in_static_select_groups(tmp_path: Path) -
     rules = config["rules"]
 
     assert [proxy["name"] for proxy in config["proxies"]] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
-    assert groups["🚀 代理"] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2", "DIRECT"]
-    assert groups["🤖 AI"] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2", "🚀 代理"]
-    assert next(group for group in config["proxy-groups"] if group["name"] == "🤖 AI")["type"] == "fallback"
-    assert groups["💻 GitHub"] == ["🚀 代理", "node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
-    assert groups["⬇️ 下载"] == ["🚀 代理", "node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
-    assert "🔁 故障转移" not in groups
+    assert groups["🚀 代理"] == [
+        "node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2", "🔁 故障转移", "DIRECT"
+    ]
+    assert groups["🔁 故障转移"] == ["node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"]
+    assert groups["🤖 AI"] == [
+        "🚀 代理", "🔁 故障转移", "node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"
+    ]
+    assert next(group for group in config["proxy-groups"] if group["name"] == "🤖 AI")["type"] == "select"
+    assert groups["💻 GitHub"] == [
+        "🚀 代理", "🔁 故障转移", "node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"
+    ]
+    assert groups["⬇️ 下载"] == [
+        "🚀 代理", "🔁 故障转移", "node-a", "Pin-Che · pinche-cdn", "Pin-Che · pinche-hy2"
+    ]
     assert "⚡ 自动选择" not in groups
     assert "🧭 手动选择" not in groups
     assert "Pin-Che: nodes=2, policy=manual_only, traffic=0.00B / 4.88TB, expires=2027-05-16" in (
@@ -571,21 +590,19 @@ def test_manual_only_nodes_are_visible_in_static_select_groups(tmp_path: Path) -
     shadow_lines = shadow_text.splitlines()
     assert "Pin-Che · pinche-cdn=vless" in shadow_text
     assert "Pin-Che · pinche-hy2" not in shadow_text
-    assert "🚀 代理 = select,node-a,Pin-Che · pinche-cdn,DIRECT" in shadow_text
-    assert (
-        "🤖 AI = fallback,node-a,Pin-Che · pinche-cdn,🚀 代理,"
-        "url=https://www.gstatic.com/generate_204,interval=300"
-    ) in shadow_text
-    assert "⬇️ 下载 = select,🚀 代理,node-a,Pin-Che · pinche-cdn" in shadow_text
+    assert "🚀 代理 = select,node-a,Pin-Che · pinche-cdn,🔁 故障转移,DIRECT" in shadow_text
+    assert "🔁 故障转移 = fallback,node-a,Pin-Che · pinche-cdn," in shadow_text
+    assert "🤖 AI = select,🚀 代理,🔁 故障转移,node-a,Pin-Che · pinche-cdn" in shadow_text
+    assert "⬇️ 下载 = select,🚀 代理,🔁 故障转移,node-a,Pin-Che · pinche-cdn" in shadow_text
     assert "DOMAIN,proxy.example.test,DIRECT" in shadow_lines
     assert "IP-CIDR,104.18.82.177/32,DIRECT" in shadow_lines
     assert "DOMAIN,edge.example.test,DIRECT" not in shadow_lines
     assert "DOMAIN,zhuijumi.tv,DIRECT" not in shadow_lines
 
 
-def test_ai_group_prefers_us_home_node_but_all_nodes_are_selectable_across_clients(tmp_path: Path) -> None:
+def test_country_fallbacks_and_all_nodes_are_available_across_clients(tmp_path: Path) -> None:
     primary_node = ProxyNode(
-        name="Suehn-Suehn2-260.97GB",
+        name="Suehn-Suehn2-245.68GB📊",
         type="vless",
         server="proxy.example.test",
         port=443,
@@ -624,7 +641,15 @@ def test_ai_group_prefers_us_home_node_but_all_nodes_are_selectable_across_clien
         uuid="00000000-0000-4000-8000-000000000010",
         tls=True,
     ).apply_source(source_id="mesl", source_label="MESL", group_policy="manual_only")
-    nodes = [primary_node, mesl_home_07, mesl_home_jp, mesl_home_08, mesl_home_us10]
+    mesl_home_my = ProxyNode(
+        name="🇲🇾 马来西亚 01 家宽",
+        type="vless",
+        server="my01.example.test",
+        port=443,
+        uuid="00000000-0000-4000-8000-000000000011",
+        tls=True,
+    ).apply_source(source_id="mesl", source_label="MESL", group_policy="manual_only")
+    nodes = [mesl_home_07, mesl_home_jp, primary_node, mesl_home_08, mesl_home_us10, mesl_home_my]
 
     render_mihomo(
         project_root=Path.cwd(),
@@ -636,34 +661,35 @@ def test_ai_group_prefers_us_home_node_but_all_nodes_are_selectable_across_clien
     config = yaml.safe_load((tmp_path / "mihomo-full.yaml").read_text(encoding="utf-8"))
     groups = {group["name"]: group["proxies"] for group in config["proxy-groups"]}
     expected_all_nodes = [
-        "Suehn-Suehn2-260.97GB",
+        "Suehn-Suehn2-245.68GB📊",
         "MESL · 台湾 07 家宽",
         "MESL · 日本 01 家宽",
         "MESL · 台湾 08 家宽",
         "MESL · 美国 10 家宽",
+        "MESL · 🇲🇾 马来西亚 01 家宽",
     ]
 
-    assert groups["🚀 代理"] == [*expected_all_nodes, "DIRECT"]
-    assert groups["🤖 AI"] == [
-        "MESL · 美国 10 家宽",
-        "Suehn-Suehn2-260.97GB",
-        "MESL · 台湾 07 家宽",
-        "MESL · 日本 01 家宽",
-        "MESL · 台湾 08 家宽",
-        "🚀 代理",
-    ]
-    assert groups["💻 GitHub"] == ["🚀 代理", *expected_all_nodes]
-    assert groups["⬇️ 下载"] == ["🚀 代理", *expected_all_nodes]
-    assert "🔁 故障转移" not in groups
+    country_groups = ["🇹🇼 台湾故障转移", "🇯🇵 日本故障转移", "🇺🇸 美国故障转移", "🇲🇾 MY故障转移"]
+    assert groups["🚀 代理"] == [*expected_all_nodes, "🔁 故障转移", *country_groups, "DIRECT"]
+    assert groups["🔁 故障转移"] == expected_all_nodes
+    assert groups["🇹🇼 台湾故障转移"] == ["MESL · 台湾 07 家宽", "MESL · 台湾 08 家宽"]
+    assert groups["🇯🇵 日本故障转移"] == ["MESL · 日本 01 家宽"]
+    assert groups["🇺🇸 美国故障转移"] == ["MESL · 美国 10 家宽"]
+    assert groups["🇲🇾 MY故障转移"] == ["MESL · 🇲🇾 马来西亚 01 家宽"]
+    assert groups["🤖 AI"] == ["🚀 代理", "🔁 故障转移", *country_groups, *expected_all_nodes]
+    assert groups["💻 GitHub"] == ["🚀 代理", "🔁 故障转移", *country_groups, *expected_all_nodes]
+    assert groups["⬇️ 下载"] == ["🚀 代理", "🔁 故障转移", *country_groups, *expected_all_nodes]
     assert "⚡ 自动选择" not in groups
 
     shadow_text = _render_shadowrocket(tmp_path, nodes=nodes)
     shadow_lines = shadow_text.splitlines()
     shadow_ai_group = next(line for line in shadow_lines if line.startswith("🤖 AI = "))
-    assert shadow_ai_group.startswith("🤖 AI = fallback,MESL · 美国 10 家宽,Suehn-Suehn2-260.97GB")
-    assert "url=https://www.gstatic.com/generate_204" in shadow_ai_group
-    assert "interval=300" in shadow_ai_group
+    assert shadow_ai_group.startswith("🤖 AI = select,🚀 代理,🔁 故障转移,🇹🇼 台湾故障转移")
     assert all(node in shadow_ai_group for node in expected_all_nodes)
+    assert (
+        "🇹🇼 台湾故障转移 = fallback,MESL · 台湾 07 家宽,MESL · 台湾 08 家宽,"
+        "url=https://www.gstatic.com/generate_204,interval=300"
+    ) in shadow_text
     assert "MESL · 日本 01 家宽=vless" in shadow_text
     assert not any("url-test" in line for line in shadow_lines)
 
@@ -906,6 +932,7 @@ def test_prepare_public_pages_excludes_private_subscription_artifacts(tmp_path: 
     for private_name in [
         "mihomo-full.yaml",
         "mihomo-android.yaml",
+        "mihomo-generic.yaml",
         "shadowrocket.conf",
         "shadowrocket-strict.conf",
         "shadowrocket-subscription.txt",
@@ -928,6 +955,7 @@ def test_prepare_public_pages_excludes_private_subscription_artifacts(tmp_path: 
     for private_name in [
         "mihomo-full.yaml",
         "mihomo-android.yaml",
+        "mihomo-generic.yaml",
         "shadowrocket.conf",
         "shadowrocket-strict.conf",
         "shadowrocket-subscription.txt",

@@ -61,6 +61,10 @@ class ProxyNode:
             return cls._from_vmess_uri(uri)
         if uri.startswith("ss://"):
             return cls._from_ss_uri(uri)
+        if uri.startswith(("hysteria2://", "hy2://")):
+            return cls._from_hysteria2_uri(uri)
+        if uri.startswith("anytls://"):
+            return cls._from_anytls_uri(uri)
         raise ValueError(f"Unsupported proxy URI: {uri[:32]}...")
 
     @classmethod
@@ -165,6 +169,41 @@ class ProxyNode:
             password=password,
             cipher=method,
             network="tcp",
+            raw_uri=uri,
+        )
+
+    @classmethod
+    def _from_hysteria2_uri(cls, uri: str) -> "ProxyNode":
+        normalized_uri = "hysteria2://" + uri.split("://", 1)[1]
+        parsed = urlparse(normalized_uri)
+        query = parse_qs(parsed.query)
+        return cls(
+            name=_clean_name(unquote(parsed.fragment or "hysteria2")),
+            type="hysteria2",
+            server=parsed.hostname or "",
+            port=parsed.port or 443,
+            password=unquote(parsed.username or ""),
+            tls=True,
+            servername=query.get("sni", [query.get("peer", [None])[0]])[0],
+            skip_cert_verify=query.get("insecure", query.get("allowInsecure", ["0"]))[0] in {"1", "true"},
+            raw_uri=normalized_uri,
+        )
+
+    @classmethod
+    def _from_anytls_uri(cls, uri: str) -> "ProxyNode":
+        parsed = urlparse(uri)
+        query = parse_qs(parsed.query)
+        return cls(
+            name=_clean_name(unquote(parsed.fragment or "anytls")),
+            type="anytls",
+            server=parsed.hostname or "",
+            port=parsed.port or 443,
+            password=unquote(parsed.username or ""),
+            tls=True,
+            servername=query.get("sni", [query.get("peer", [None])[0]])[0],
+            client_fingerprint=query.get("fp", [None])[0],
+            skip_cert_verify=query.get("insecure", query.get("allowInsecure", ["0"]))[0] in {"1", "true"},
+            alpn=_split_csv(query.get("alpn", [None])[0]),
             raw_uri=uri,
         )
 
@@ -316,7 +355,16 @@ class ProxyNode:
 
     def to_uri(self) -> str:
         if self.raw_uri:
-            return self.raw_uri
+            if self.raw_uri.startswith("vmess://"):
+                payload = self.raw_uri.removeprefix("vmess://")
+                data = json.loads(base64.b64decode(payload + "=" * (-len(payload) % 4)).decode("utf-8"))
+                data["ps"] = self.name
+                encoded = base64.b64encode(
+                    json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                ).decode("ascii")
+                return f"vmess://{encoded}"
+            parsed = urlparse(self.raw_uri)
+            return parsed._replace(fragment=quote(self.name, safe="")).geturl()
         if self.type == "vless" and self.uuid:
             query: dict[str, str] = {}
             if self.tls:

@@ -21,6 +21,32 @@ foreign_groups_no_direct_member:
   - Telegram
   - Streaming
   - Download
+fallback_group: Fallback
+groups_follow_proxy:
+  - RuleUpdate
+  - GitHub
+  - AI
+  - Google
+  - Developer
+  - Apple
+  - Microsoft
+  - Telegram
+  - Streaming
+  - Download
+  - Final
+select_groups_include_all_nodes:
+  - PROXY
+  - RuleUpdate
+  - GitHub
+  - AI
+  - Google
+  - Developer
+  - Apple
+  - Microsoft
+  - Telegram
+  - Streaming
+  - Download
+  - Final
 rule_order:
   - before: DOMAIN-SUFFIX,github.com
     after: RULE-SET,download_domainset

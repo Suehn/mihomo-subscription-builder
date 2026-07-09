@@ -25,6 +25,7 @@ from .rules import BuiltRule
 
 
 HOST_LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+FLAG_RE = re.compile(r"[\U0001F1E6-\U0001F1FF]{2}")
 PUBLIC_PAGES_MARKER = ".generated-public-pages"
 
 
@@ -159,6 +160,50 @@ def _node_names_for_group_spec(nodes: list[ProxyNode], spec: dict[str, object]) 
     return [node.name for _, node in sorted(selected, key=sort_key)]
 
 
+def _build_country_fallback_groups(payload: dict[str, object], nodes: list[ProxyNode]) -> list[dict[str, object]]:
+    raw_config = payload.get("country_fallbacks")
+    if not isinstance(raw_config, dict):
+        return []
+
+    group_type = str(raw_config.get("type", "fallback"))
+    if group_type not in {"fallback", "url-test"}:
+        raise ValueError(f"Unsupported country fallback group type: {group_type}")
+
+    def build_group(name: str, members: list[str]) -> dict[str, object]:
+        group: dict[str, object] = {
+            "name": name,
+            "type": group_type,
+            "proxies": _dedupe(members),
+        }
+        for field in ("url", "interval", "tolerance", "timeout", "lazy"):
+            if field in raw_config:
+                group[field] = raw_config[field]
+        return group
+
+    groups: list[dict[str, object]] = []
+    configured_flags: set[str] = set()
+    for raw_country in raw_config.get("countries", []):
+        if not isinstance(raw_country, dict):
+            raise TypeError("country_fallbacks.countries entries must be mappings")
+        name = str(raw_country["name"])
+        configured_flags.update(FLAG_RE.findall(name))
+        patterns = [re.compile(pattern, re.IGNORECASE) for pattern in _string_list(raw_country.get("patterns"))]
+        members = [node.name for node in nodes if any(pattern.search(node.name) for pattern in patterns)]
+        if not members:
+            continue
+        groups.append(build_group(name, members))
+
+    unconfigured_flag_nodes: dict[str, list[str]] = {}
+    for node in nodes:
+        for flag in FLAG_RE.findall(node.name):
+            if flag not in configured_flags:
+                unconfigured_flag_nodes.setdefault(flag, []).append(node.name)
+    for flag, members in unconfigured_flag_nodes.items():
+        country_code = "".join(chr(ord(character) - 0x1F1E6 + ord("A")) for character in flag)
+        groups.append(build_group(f"{flag} {country_code}故障转移", members))
+    return groups
+
+
 def _format_bytes(value: object) -> str:
     try:
         size = float(value)
@@ -287,6 +332,8 @@ def _build_mihomo_groups(project_root: Path, nodes: list[ProxyNode]) -> list[dic
     if not isinstance(payload, dict):
         raise TypeError("config/mihomo/groups.yaml must contain a mapping")
 
+    country_groups = _build_country_fallback_groups(payload, nodes)
+    country_group_names = [str(group["name"]) for group in country_groups]
     groups: list[dict[str, object]] = []
     for raw_group in payload.get("groups", []):
         key = str(raw_group["key"])
@@ -295,6 +342,9 @@ def _build_mihomo_groups(project_root: Path, nodes: list[ProxyNode]) -> list[dic
             "type": raw_group["type"],
         }
         members = [_resolve_policy(str(item)) for item in raw_group.get("members", [])]
+        if raw_group.get("include_country_fallbacks"):
+            direct_index = members.index("DIRECT") if "DIRECT" in members else len(members)
+            members[direct_index:direct_index] = country_group_names
         group_node_names = _node_names_for_group(nodes, raw_group.get("include_nodes"))
         if raw_group.get("nodes_first"):
             members = [*group_node_names, *members]
@@ -306,6 +356,8 @@ def _build_mihomo_groups(project_root: Path, nodes: list[ProxyNode]) -> list[dic
             if field in raw_group:
                 group[field] = raw_group[field]
         groups.append(group)
+        if raw_group.get("append_country_fallbacks_after"):
+            groups.extend(deepcopy(country_groups))
     return groups
 
 
@@ -578,8 +630,9 @@ def render_shadowrocket(
 def render_index(*, output_root: Path, public_base_url: str, private_base_url: str | None = None) -> None:
     private_base_url = private_base_url or public_base_url
     links = [
-        ("Mihomo subscription", f"{private_base_url}/mihomo-full.yaml"),
+        ("Mihomo macOS subscription", f"{private_base_url}/mihomo-full.yaml"),
         ("Mihomo Android subscription", f"{private_base_url}/mihomo-android.yaml"),
+        ("Mihomo generic subscription (Windows/Linux/router)", f"{private_base_url}/mihomo-generic.yaml"),
         ("Shadowrocket config", f"{private_base_url}/shadowrocket.conf"),
         ("Shadowrocket strict config", f"{private_base_url}/shadowrocket-strict.conf"),
         ("Shadowrocket node subscription", f"{private_base_url}/shadowrocket-subscription.txt"),

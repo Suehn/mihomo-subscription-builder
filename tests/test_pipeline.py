@@ -94,6 +94,7 @@ def test_build_all_uses_cached_nodes_and_writes_expected_artifacts(
     assert ("rule-audit", tmp_path / "build" / "rule-audit.json") in events
     assert ("mihomo", "mihomo-full.yaml") in events
     assert ("mihomo", "mihomo-android.yaml") in events
+    assert ("mihomo", "mihomo-generic.yaml") in events
     assert ("shadowrocket", "shadowrocket.conf") in events
     assert ("shadowrocket", "shadowrocket-strict.conf") in events
     assert "Rule sources: test=1" in capsys.readouterr().err
@@ -125,6 +126,7 @@ def test_validate_outputs_uses_expected_generated_files(monkeypatch, tmp_path: P
     for relative_path in (
         "dist/mihomo-full.yaml",
         "dist/mihomo-android.yaml",
+        "dist/mihomo-generic.yaml",
         "dist/shadowrocket.conf",
         "dist/shadowrocket-strict.conf",
         "build/rule-audit.json",
@@ -163,9 +165,10 @@ def test_validate_outputs_uses_expected_generated_files(monkeypatch, tmp_path: P
     assert calls == [
         ("mihomo", "mihomo-full.yaml"),
         ("mihomo", "mihomo-android.yaml"),
+        ("mihomo", "mihomo-generic.yaml"),
         ("rule-audit", "rule-audit.json"),
         ("shadowrocket", "shadowrocket.conf"),
         ("shadowrocket", "shadowrocket-strict.conf"),
-        ("routes", ["mihomo-full.yaml", "mihomo-android.yaml"]),
+        ("routes", ["mihomo-full.yaml", "mihomo-android.yaml", "mihomo-generic.yaml"]),
         ("coverage", "rule-coverage.yaml"),
     ]

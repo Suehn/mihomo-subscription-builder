@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       UPSTREAM_SUB_URL: ${{ secrets.UPSTREAM_SUB_URL }}
+      UPSTREAM_SUB_URLS: ${{ secrets.UPSTREAM_SUB_URLS }}
       MESL_SUB_URL: ${{ secrets.MESL_SUB_URL }}
       MESL_SUB_TEXT: ${{ secrets.MESL_SUB_TEXT }}
       LINUXDO_SUB_URL: ${{ secrets.LINUXDO_SUB_URL }}
@@ -91,6 +92,23 @@ jobs:
           SSH_COMMAND="ssh -i $HOME/.ssh/private_deploy_key -p $SSH_PORT -o BatchMode=yes -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=6"
           rsync -az --delete -e "$SSH_COMMAND" dist/ "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST:$PRIVATE_SSH_PATH/"
 
+      - name: Verify private subscription URLs
+        if: env.PRIVATE_DEPLOY_ENABLED == 'true'
+        run: |
+          verify_dir="$(mktemp -d)"
+          private_base_url="${EFFECTIVE_PRIVATE_BASE_URL%/}"
+          for artifact in mihomo-full.yaml mihomo-android.yaml mihomo-generic.yaml shadowrocket.conf shadowrocket-subscription.txt; do
+            curl --fail --silent --show-error --location --retry 6 --retry-all-errors \
+              --connect-timeout 15 --max-time 60 \
+              "$private_base_url/$artifact?build=$GITHUB_SHA" -o "$verify_dir/$artifact"
+            test -s "$verify_dir/$artifact"
+          done
+          grep -q '^proxies:' "$verify_dir/mihomo-full.yaml"
+          grep -q 'name: 🔁 故障转移' "$verify_dir/mihomo-full.yaml"
+          grep -q '^proxy-groups:' "$verify_dir/mihomo-generic.yaml"
+          grep -q '^\[Proxy Group\]' "$verify_dir/shadowrocket.conf"
+          grep -q '^🔁 故障转移 = fallback' "$verify_dir/shadowrocket.conf"
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
@@ -109,3 +127,10 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Verify public rules URL
+        run: |
+          page_url="${{ steps.deployment.outputs.page_url }}"
+          page_url="${page_url%/}"
+          curl --fail --silent --show-error --location --retry 6 --retry-all-errors \
+            --connect-timeout 15 --max-time 60 "$page_url/rules/mihomo/private.yaml?build=$GITHUB_SHA" -o /dev/null

@@ -10,8 +10,10 @@ from .routing_contract import (
     GROUP_LABELS,
     SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_FIRST,
     SHADOWROCKET_FOREIGN_GROUPS_NO_DIRECT_MEMBER,
+    SHADOWROCKET_GROUPS_FOLLOW_PROXY,
     SHADOWROCKET_REQUIRED_RULE_FRAGMENTS,
     SHADOWROCKET_RULE_ORDER,
+    SHADOWROCKET_SELECT_GROUPS_INCLUDE_ALL_NODES,
 )
 
 
@@ -20,6 +22,7 @@ PUBLIC_PAGES_ALLOWED_ROOT_ENTRIES = {"index.html", ".nojekyll", PUBLIC_PAGES_MAR
 PRIVATE_ARTIFACT_NAMES = {
     "mihomo-full.yaml",
     "mihomo-android.yaml",
+    "mihomo-generic.yaml",
     "shadowrocket.conf",
     "shadowrocket-strict.conf",
     "shadowrocket-subscription.txt",
@@ -152,6 +155,43 @@ def validate_mihomo_config(config_path: Path, validation_path: Path) -> None:
         if "DIRECT" in proxies:
             raise ValueError(f"Proxy group must not include DIRECT: {group_name}")
 
+    proxy_group_name = GROUP_LABELS["PROXY"]
+    for key in validation.get("groups_follow_proxy", []):
+        group_name = GROUP_LABELS[str(key)]
+        group = groups.get(group_name)
+        if not group:
+            raise ValueError(f"Missing required proxy group: {group_name}")
+        proxies = group.get("proxies", [])
+        if not isinstance(proxies, list) or not proxies or proxies[0] != proxy_group_name:
+            raise ValueError(f"Proxy group must default to {proxy_group_name}: {group_name}")
+
+    node_names = {str(proxy["name"]) for proxy in config["proxies"] if isinstance(proxy, dict) and "name" in proxy}
+    for key in validation.get("select_groups_include_all_nodes", []):
+        group_name = GROUP_LABELS[str(key)]
+        group = groups.get(group_name)
+        if not group:
+            raise ValueError(f"Missing required proxy group: {group_name}")
+        if group.get("type") != "select":
+            raise ValueError(f"Proxy group must be a select group: {group_name}")
+        proxies = group.get("proxies", [])
+        if not isinstance(proxies, list):
+            raise ValueError(f"Proxy group proxies must be a list: {group_name}")
+        missing_nodes = node_names - {str(item) for item in proxies}
+        if missing_nodes:
+            raise ValueError(f"Proxy group does not expose every node: {group_name}: {sorted(missing_nodes)}")
+
+    fallback_key = validation.get("fallback_group")
+    if fallback_key:
+        fallback_name = GROUP_LABELS[str(fallback_key)]
+        fallback_group = groups.get(fallback_name)
+        if not fallback_group:
+            raise ValueError(f"Missing required fallback group: {fallback_name}")
+        if fallback_group.get("type") != "fallback":
+            raise ValueError(f"Required fallback group must use type fallback: {fallback_name}")
+        fallback_members = fallback_group.get("proxies", [])
+        if not isinstance(fallback_members, list) or node_names - {str(item) for item in fallback_members}:
+            raise ValueError(f"Required fallback group must contain every node: {fallback_name}")
+
     _validate_rule_groups(config)
     _validate_rule_providers(config)
 
@@ -272,6 +312,14 @@ def _shadowrocket_groups(lines: list[str]) -> dict[str, list[str]]:
     return groups
 
 
+def _shadowrocket_proxy_names(lines: list[str]) -> set[str]:
+    names: set[str] = set()
+    for line in _shadowrocket_section(lines, "Proxy"):
+        if "=" in line:
+            names.add(line.split("=", 1)[0].strip())
+    return names
+
+
 def validate_shadowrocket_config(config_path: Path) -> None:
     lines = config_path.read_text(encoding="utf-8").splitlines()
     for section in ("[General]", "[Proxy]", "[Proxy Group]", "[Rule]"):
@@ -297,6 +345,32 @@ def validate_shadowrocket_config(config_path: Path) -> None:
             raise ValueError(f"Missing required Shadowrocket proxy group: {group_name}")
         if "DIRECT" in members:
             raise ValueError(f"Shadowrocket proxy group must not include DIRECT: {group_name}")
+
+    proxy_group_name = GROUP_LABELS["PROXY"]
+    for key in SHADOWROCKET_GROUPS_FOLLOW_PROXY:
+        group_name = GROUP_LABELS[key]
+        members = groups.get(group_name)
+        if not members or members[0] != proxy_group_name:
+            raise ValueError(f"Shadowrocket proxy group must default to {proxy_group_name}: {group_name}")
+
+    node_names = _shadowrocket_proxy_names(lines)
+    for key in SHADOWROCKET_SELECT_GROUPS_INCLUDE_ALL_NODES:
+        group_name = GROUP_LABELS[key]
+        members = groups.get(group_name)
+        if not members:
+            raise ValueError(f"Missing required Shadowrocket proxy group: {group_name}")
+        missing_nodes = node_names - set(members)
+        if missing_nodes:
+            raise ValueError(
+                f"Shadowrocket proxy group does not expose every node: {group_name}: {sorted(missing_nodes)}"
+            )
+
+    fallback_group_name = GROUP_LABELS["Fallback"]
+    fallback_members = groups.get(fallback_group_name)
+    if not fallback_members:
+        raise ValueError(f"Missing required Shadowrocket fallback group: {fallback_group_name}")
+    if node_names - set(fallback_members):
+        raise ValueError(f"Shadowrocket fallback group must contain every node: {fallback_group_name}")
 
     final_group_name = GROUP_LABELS["Final"]
     final_members = groups.get(final_group_name)

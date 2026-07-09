@@ -48,6 +48,17 @@ def test_load_project_config_accepts_valid_source_config(tmp_path: Path) -> None
     assert set(config.rules[0].outputs) == {"mihomo", "shadowrocket"}
 
 
+def test_load_project_config_accepts_plural_subscription_url_secret(tmp_path: Path) -> None:
+    path = _write_config(
+        tmp_path,
+        _base_config().replace("env_var: UPSTREAM_SUB_URL", "env_var: UPSTREAM_SUB_URL\n  urls_env_var: UPSTREAM_SUB_URLS"),
+    )
+
+    config = load_project_config(path)
+
+    assert config.node_sources[0].urls_env_var == "UPSTREAM_SUB_URLS"
+
+
 def test_load_project_config_rejects_duplicate_rule_ids(tmp_path: Path) -> None:
     path = _write_config(
         tmp_path,

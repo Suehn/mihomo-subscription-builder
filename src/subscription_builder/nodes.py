@@ -172,6 +172,35 @@ def filter_nodes_by_name(
     return selected
 
 
+def normalize_nodes(nodes: Iterable[ProxyNode]) -> list[ProxyNode]:
+    """Drop exact duplicate connections and make colliding display names unique."""
+    normalized: list[ProxyNode] = []
+    connection_keys: set[str] = set()
+    name_counts: dict[str, int] = {}
+    used_names: set[str] = set()
+
+    for node in nodes:
+        connection = node.to_mihomo_proxy()
+        connection.pop("name", None)
+        connection_key = json.dumps(connection, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        if connection_key in connection_keys:
+            continue
+        connection_keys.add(connection_key)
+
+        base_name = node.name
+        ordinal = name_counts.get(base_name, 0) + 1
+        candidate = base_name if ordinal == 1 else f"{base_name} · {ordinal}"
+        while candidate in used_names:
+            ordinal += 1
+            candidate = f"{base_name} · {ordinal}"
+        name_counts[base_name] = ordinal
+        used_names.add(candidate)
+        node.name = candidate
+        normalized.append(node)
+
+    return normalized
+
+
 def parse_node_source_text(
     *,
     raw_text: str,

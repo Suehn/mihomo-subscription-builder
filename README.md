@@ -1,9 +1,11 @@
 # mihomo-subscription-builder
 
-Build a self-hosted remote subscription from a raw upstream node feed. The
-project targets two outputs:
+Build self-hosted remote subscriptions from one or more upstream node feeds.
+The main outputs are:
 
-- `mihomo-full.yaml` for Mihomo-compatible clients
+- `mihomo-full.yaml` for macOS Mihomo clients
+- `mihomo-android.yaml` for Android Mihomo clients
+- `mihomo-generic.yaml` for Windows, Linux, OpenClash, and routers
 - `shadowrocket.conf`, `shadowrocket-strict.conf`, and
   `shadowrocket-subscription.txt` for Shadowrocket
 
@@ -18,17 +20,20 @@ through the private `UPSTREAM_SUB_URL` secret.
 
 ## What It Does
 
-- Pulls the upstream subscription from `UPSTREAM_SUB_URL`
+- Pulls one subscription from `UPSTREAM_SUB_URL`, or merges additional
+  newline-separated/JSON-array URLs from `UPSTREAM_SUB_URLS`
 - Optionally merges `MESL_SUB_URL` home broadband nodes whose names contain
-  `家宽` for AI fallback and manual selection in every group
+  `家宽` for manual selection and global/country fallback groups
 - Optionally merges a private `LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` single
-  node, renames it to `美国Linuxdo`, and prefers it for AI traffic with
-  `美国家宽10` as the fallback candidate
+  node and renames it to `美国Linuxdo`
 - Optionally merges a secondary `PINCHE_SUB_URL` subscription as manual-only
   nodes
 - Decodes Base64 subscriptions automatically
 - Parses both URI subscriptions and Mihomo/Clash YAML proxy lists
-- Parses `vless://`, `vmess://`, `trojan://`, and `ss://` links
+- Parses `vless://`, `vmess://`, `trojan://`, `ss://`, `hysteria2://`/`hy2://`,
+  and `anytls://` links
+- Deduplicates identical connections and gives colliding node names stable,
+  unique display names when several subscriptions are merged
 - Mirrors remote rule files into your own GitHub Pages artifact
 - Renders a Mihomo configuration with self-hosted `rule-providers`
 - Renders a Shadowrocket configuration and also emits URI subscription fallbacks
@@ -131,41 +136,43 @@ semantics but uses the same proxy-first static group defaults as Mihomo.
 
 Mihomo and Shadowrocket share the same group names where possible:
 
-- `🚀 代理`: primary proxy selector, first group for easy client operation. It
-  defaults to the first node whose name contains `Suehn-Suehn2-260.97`, then
-  `Suehn-Suehn2`, and keeps `DIRECT` as an explicit manual escape hatch.
+- `🚀 代理`: primary proxy selector and the first group in every client. It
+  defaults to the first node whose name contains `Suehn-Suehn2`, so changing
+  quota text such as `245.68GB` does not break the preference. It also exposes
+  every raw node, the fallback groups, and `DIRECT`.
+- `🔁 故障转移`: health-check fallback across every available node, with the
+  same Suehn node preferred first.
+- Country/region fallback groups such as `🇭🇰 香港故障转移`,
+  `🇸🇬 新加坡故障转移`, and `🇺🇸 美国故障转移` are generated only when matching
+  nodes exist. Matching supports flags, Chinese/English names, and common codes;
+  previously unknown flag countries still get an ISO-code group automatically.
 - `💻 GitHub`, `🤖 AI`, `🔎 Google`, `🛠 Developer`, `✈️ Telegram`,
-  `📺 流媒体`: explicit foreign service groups. They expose all nodes for manual
-  selection but do not include `DIRECT`, which avoids persistent client-side
-  selected-state accidentally turning them into long-term direct groups.
-- `🍎 Apple`: defaults DIRECT because normal Apple system services, App Store,
-  iCloud, push, and updates are commonly domestic-friendly. Apple Intelligence is
-  routed to `🤖 AI` instead.
+  `📺 流媒体`: explicit service groups. They all default to `🚀 代理`, then expose
+  the global fallback, matching country fallbacks, and every raw node. Foreign
+  groups do not include `DIRECT`.
+- `🍎 Apple`: now also defaults to `🚀 代理` for consistent multi-device state,
+  while keeping `DIRECT` as a manual option. Apple China/CDN rules still go
+  DIRECT before reaching this group; Apple Intelligence still routes to `🤖 AI`.
 - `🪟 Microsoft`: defaults proxy-first for global Microsoft services, while
   Microsoft CN/CDN rules are direct before the group.
 - `⬇️ 下载`: proxy-first on every generated profile. Domestic download
   candidates are handled by earlier domestic mirrors and Mihomo's
   `AND(download,GEOIP,CN)` split, not by making the whole download group DIRECT.
-- `🌐 兜底`: defaults proxy-first on Mihomo, Android Mihomo, and Shadowrocket.
-- `🤖 AI`: a small health-check fallback group for AI traffic. It prefers
-  `美国Linuxdo`, then `美国 10 家宽` / `美国家宽10` naming variants, then the
-  remaining nodes and `🚀 代理`. ChatGPT, OpenAI, Codex, Claude, Anthropic,
-  Gemini, and Apple Intelligence rules route here.
+- `🌐 兜底`: defaults to `🚀 代理` on every generated client.
 
 Optional secondary node sources are explicit:
 
 - `MESL_SUB_URL` is marked `manual_only` but filtered to names containing
   `家宽`. Those nodes are rendered into every static select group for manual
-  selection. The AI group uses `美国家宽10` as the fallback candidate after
-  `美国Linuxdo`. If the live MESL endpoint rate-limits a build,
+  selection and in matching country fallback groups. If the live MESL endpoint rate-limits a build,
   `MESL_SUB_TEXT` can provide a private cached home-node YAML fallback without
   committing node data.
 - `LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` is an optional private single-node
   source. The node is filtered by `linuxdo` / `美国Linuxdo`, renamed to
   `美国Linuxdo`, and injected through secrets rather than committed to source.
 - `PINCHE_SUB_URL` remains manual-only. Those nodes are rendered so they can be
-  selected manually from the static select groups, without becoming a separate
-  automatic default path.
+  selected manually from every static select group and participate in global or
+  matching country fallback groups.
 
 Traffic quota and expiry metadata are written to `dist/node-sources.json` and
 also emitted as comments near the top of generated configs.
@@ -210,6 +217,12 @@ experience and avoid wasting proxy traffic.
 WeChat and QQ package rules are not placed at the very top. They are inserted
 after foreign hard pins for the same reason as macOS: they are mixed containers
 that can open third-party foreign links.
+
+### Windows, Linux, OpenClash, and routers
+
+`dist/mihomo-generic.yaml` keeps the shared rule and group behavior without a
+macOS process overlay or Android package overlay. It is the portable profile for
+Clash Verge Rev on Windows/Linux, OpenClash, and other Mihomo-compatible devices.
 
 ### iOS Shadowrocket
 
@@ -271,7 +284,8 @@ push, then update the client profile from the published URL.
 
 - Mihomo syntax with `verge-mihomo -t` when Clash Verge Rev is installed.
 - Mihomo group existence, rule-provider references, final rule placement, IPv6
-  policy, and route ordering.
+  policy, route ordering, unified defaults, all-node visibility, and fallback
+  completeness.
 - Shadowrocket sections, IPv6 policy, key foreign groups, final rule placement,
   and rule ordering.
 - Representative domain routing from `config/route-expectations.yaml`, including
@@ -296,7 +310,7 @@ instances on high local ports, waits for providers to load, and requests
 representative URLs through the generated mixed-port. This catches runtime
 failures that static YAML validation cannot see.
 
-Important: `mihomo-full.yaml`, `mihomo-android.yaml`, `shadowrocket.conf`, and
+Important: `mihomo-full.yaml`, `mihomo-android.yaml`, `mihomo-generic.yaml`, `shadowrocket.conf`, and
 `shadowrocket-subscription.txt` contain proxy nodes. They should not stay on
 public GitHub Pages long term.
 
@@ -319,12 +333,13 @@ deploys full subscriptions to the private host.
 ## Local Usage
 
 ```bash
-cd /Users/ziyi/Documents/code/mihomo-subscription-builder
+cd /Users/hh/Documents/code/mihomo-subscription-builder
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
 
 export UPSTREAM_SUB_URL="https://example.com/sub/your-token"
+export UPSTREAM_SUB_URLS=$'https://example.com/sub/second-token\nhttps://example.com/sub/third-token' # optional
 export MESL_SUB_URL="https://example.com/mesl/your-token" # optional; imports names containing 家宽
 export MESL_SUB_TEXT="$(cat /private/path/mesl-home-only.yaml)" # optional fallback
 export LINUXDO_SUB_TEXT="$(cat /private/path/linuxdo-vless.txt)" # optional; exact node text or YAML
@@ -343,6 +358,7 @@ Generated files land in `dist/`:
 
 - `dist/mihomo-full.yaml`
 - `dist/mihomo-android.yaml`
+- `dist/mihomo-generic.yaml`
 - `dist/shadowrocket.conf`
 - `dist/shadowrocket-strict.conf`
 - `dist/shadowrocket-subscription.txt`
@@ -363,18 +379,20 @@ The public-safe GitHub Pages artifact lands in `public-dist/`:
 Create the required repository secret:
 
 - `UPSTREAM_SUB_URL`
+- `UPSTREAM_SUB_URLS`: optional newline-separated URLs or a JSON string array.
+  These feeds are merged with `UPSTREAM_SUB_URL`; exact duplicate connections
+  are removed and duplicate display names are made unique.
 - `MESL_SUB_URL`: optional MESL subscription. When present, only nodes whose
   names contain `家宽` are imported. They remain manual-only as source metadata,
-  but static select groups expose them for manual choice. `🤖 AI` uses
-  `美国家宽10` as the fallback candidate after `美国Linuxdo`, then keeps the rest
-  of the nodes available.
+  but every static select group exposes them for manual choice and matching
+  country fallbacks use them automatically.
 - `MESL_SUB_TEXT`: optional private cached MESL home-node YAML fallback. Use it
   when the live MESL endpoint rate-limits GitHub Actions; it must stay in
   GitHub Secrets and must not be committed.
 - `LINUXDO_SUB_URL` or `LINUXDO_SUB_TEXT`: optional private Linuxdo node source.
   Store the VLESS URI or a one-node YAML subscription in GitHub Secrets. The
-  generator renames the matched node to `美国Linuxdo` and makes it the first AI
-  fallback candidate.
+  generator renames the matched node to `美国Linuxdo`; it remains selectable in
+  every group and joins the US fallback group.
 - `PINCHE_SUB_URL`: optional secondary subscription. When present, its nodes are
   included in Mihomo as manual-only `Pin-Che` nodes and exposed in static select
   groups for manual choice. Its node `server` entries are also covered by exact
@@ -395,7 +413,10 @@ When all private deploy secrets are present, the workflow:
 
 1. Builds full artifacts in `dist/`.
 2. Deploys `dist/` to the private host with `rsync --delete`.
-3. Uploads `public-dist/` to GitHub Pages, so public Pages contains rules only.
+3. Pulls the main Mihomo/Shadowrocket URLs back over HTTPS and fails the run if
+   any deployed subscription is missing or malformed.
+4. Uploads `public-dist/` to GitHub Pages, so public Pages contains rules only,
+   then verifies a published rule URL.
 
 When private deploy secrets are incomplete, the workflow keeps legacy behavior
 and uploads `dist/` to GitHub Pages. This is intentional to avoid silently

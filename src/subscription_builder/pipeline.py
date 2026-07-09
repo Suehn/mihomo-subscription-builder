@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import os
 import subprocess
@@ -12,6 +13,7 @@ from .nodes import (
     NodeSourceResult,
     fetch_and_parse_node_source,
     parse_node_source_text,
+    normalize_nodes,
     read_nodes_json,
     write_node_source_audit,
     write_nodes_json,
@@ -102,45 +104,66 @@ def fetch_configured_nodes(
     primary_source_id = config.node_sources[0].source_id
     for source in config.node_sources:
         explicit_url = upstream_url if source.source_id == primary_source_id else None
-        source_url = explicit_url or os.environ.get(source.env_var, "")
+        source_urls: list[str] = []
+        if explicit_url:
+            source_urls.append(explicit_url)
+        else:
+            source_url = os.environ.get(source.env_var, "").strip()
+            if source_url:
+                source_urls.append(source_url)
+            urls_value = os.environ.get(source.urls_env_var, "").strip() if source.urls_env_var else ""
+            if urls_value:
+                if urls_value.startswith("["):
+                    decoded_urls = json.loads(urls_value)
+                    if not isinstance(decoded_urls, list) or not all(isinstance(item, str) for item in decoded_urls):
+                        raise TypeError(f"{source.urls_env_var} must be a JSON string array or newline-separated URLs")
+                    source_urls.extend(item.strip() for item in decoded_urls if item.strip())
+                else:
+                    source_urls.extend(item.strip() for item in urls_value.splitlines() if item.strip())
+        source_urls = list(dict.fromkeys(source_urls))
         source_text = os.environ.get(source.text_env_var, "") if source.text_env_var else ""
-        if not source_url and not source_text:
+        if not source_urls and not source_text:
             if source.required:
                 raise ValueError(
-                    f"Missing upstream subscription URL. Set {source.env_var} or pass --upstream-url."
+                    f"Missing upstream subscription URL. Set {source.env_var}"
+                    + (f" or {source.urls_env_var}" if source.urls_env_var else "")
+                    + " or pass --upstream-url."
                 )
             continue
 
-        fetch_error: RuntimeError | None = None
-        result: NodeSourceResult | None = None
-        if source_url:
+        fetch_errors: list[tuple[str, str, Exception]] = []
+        fetched_results: list[NodeSourceResult] = []
+        for index, source_url in enumerate(source_urls):
+            instance_number = index + 1
+            instance_id = source.source_id if instance_number == 1 else f"{source.source_id}_{instance_number}"
+            instance_label = source.label if instance_number == 1 else f"{source.label} {instance_number}"
             try:
-                result = fetch_and_parse_node_source(
+                fetched_results.append(fetch_and_parse_node_source(
                     url=source_url,
                     user_agent=config.user_agent,
-                    source_id=source.source_id,
-                    label=source.label,
+                    source_id=instance_id,
+                    label=instance_label,
                     group_policy=source.group_policy,
                     include_name_contains=source.include_name_contains,
                     include_name_regex=source.include_name_regex,
                     name_override=source.name_override,
-                    prefix_label=source.prefix_label,
+                    prefix_label=source.prefix_label if instance_number == 1 else True,
                     metadata=source.metadata,
-                )
-            except RuntimeError as exc:
-                fetch_error = exc
+                ))
+            except (RuntimeError, ValueError) as exc:
+                fetch_errors.append((instance_id, instance_label, exc))
 
-        if result is None and source_text:
+        if not fetched_results and source_text:
             metadata = {**source.metadata}
-            if fetch_error is not None:
-                metadata["fetch_error"] = str(fetch_error)
+            if fetch_errors:
+                metadata["fetch_error"] = "; ".join(str(error) for _, _, error in fetch_errors)
                 metadata["fallback"] = source.text_env_var
                 print(
                     f"Warning: optional node source {source.source_id!r} URL fetch failed; "
-                    f"using {source.text_env_var} fallback: {fetch_error}",
+                    f"using {source.text_env_var} fallback: {metadata['fetch_error']}",
                     file=sys.stderr,
                 )
-            result = parse_node_source_text(
+            fetched_results.append(parse_node_source_text(
                 raw_text=source_text,
                 source_id=source.source_id,
                 label=source.label,
@@ -150,28 +173,43 @@ def fetch_configured_nodes(
                 name_override=source.name_override,
                 prefix_label=source.prefix_label,
                 metadata=metadata,
-            )
+            ))
 
-        if result is None and fetch_error is not None:
+        if not fetched_results and fetch_errors:
             if source.required:
-                raise fetch_error
-            print(f"Warning: optional node source {source.source_id!r} skipped: {fetch_error}", file=sys.stderr)
-            source_results.append(
-                NodeSourceResult(
-                    source_id=source.source_id,
-                    label=source.label,
+                if len(fetch_errors) == 1:
+                    raise fetch_errors[0][2]
+                raise RuntimeError(
+                    f"Every URL for required node source {source.source_id!r} failed: "
+                    + "; ".join(str(error) for _, _, error in fetch_errors)
+                )
+            for instance_id, instance_label, fetch_error in fetch_errors:
+                print(f"Warning: optional node source {instance_id!r} skipped: {fetch_error}", file=sys.stderr)
+                source_results.append(NodeSourceResult(
+                    source_id=instance_id,
+                    label=instance_label,
                     group_policy=source.group_policy,
                     nodes=[],
                     userinfo={},
                     metadata={**source.metadata, "fetch_error": str(fetch_error)},
-                )
-            )
+                ))
             continue
-        if result is None:
+        if not fetched_results:
             continue
-        nodes.extend(result.nodes)
-        source_results.append(result)
-    return nodes, source_results
+        for instance_id, instance_label, fetch_error in fetch_errors:
+            print(f"Warning: node source {instance_id!r} skipped: {fetch_error}", file=sys.stderr)
+            source_results.append(NodeSourceResult(
+                source_id=instance_id,
+                label=instance_label,
+                group_policy=source.group_policy,
+                nodes=[],
+                userinfo={},
+                metadata={**source.metadata, "fetch_error": str(fetch_error)},
+            ))
+        for result in fetched_results:
+            nodes.extend(result.nodes)
+            source_results.append(result)
+    return normalize_nodes(nodes), source_results
 
 
 def build_all(options: BuildOptions) -> None:
@@ -182,7 +220,7 @@ def build_all(options: BuildOptions) -> None:
     public_base_url = config.resolve_public_base_url(options.public_base_url)
     private_base_url = config.resolve_private_base_url(options.private_base_url, public_base_url=public_base_url)
     if options.use_cached_nodes:
-        nodes = read_nodes_json(build_root / "nodes.json")
+        nodes = normalize_nodes(read_nodes_json(build_root / "nodes.json"))
         source_results: list[NodeSourceResult] = []
     else:
         nodes, source_results = fetch_configured_nodes(config=config, upstream_url=options.upstream_url)
@@ -222,6 +260,16 @@ def build_all(options: BuildOptions) -> None:
         node_source_audit=source_audit,
         overlay_name="android",
         output_name="mihomo-android.yaml",
+    )
+    render_mihomo(
+        project_root=project_root,
+        output_root=output_root,
+        public_base_url=public_base_url,
+        nodes=nodes,
+        manifest=manifest,
+        node_source_audit=source_audit,
+        overlay_name="generic",
+        output_name="mihomo-generic.yaml",
     )
     render_shadowrocket(
         project_root=project_root,
@@ -264,15 +312,23 @@ def validate_outputs(options: ValidateOptions) -> None:
     )
     mihomo_path = output_root / "mihomo-full.yaml"
     android_mihomo_path = output_root / "mihomo-android.yaml"
+    generic_mihomo_path = output_root / "mihomo-generic.yaml"
     shadowrocket_path = output_root / "shadowrocket.conf"
     shadowrocket_strict_path = output_root / "shadowrocket-strict.conf"
-    for required_path in (mihomo_path, android_mihomo_path, shadowrocket_path, shadowrocket_strict_path):
+    for required_path in (
+        mihomo_path,
+        android_mihomo_path,
+        generic_mihomo_path,
+        shadowrocket_path,
+        shadowrocket_strict_path,
+    ):
         if not required_path.exists():
             raise FileNotFoundError(required_path)
 
     validation_path = project_root / "config" / "mihomo" / "validation.yaml"
     validate_mihomo_config(mihomo_path, validation_path)
     validate_mihomo_config(android_mihomo_path, validation_path)
+    validate_mihomo_config(generic_mihomo_path, validation_path)
     validate_rule_audit(
         project_root / "build" / "rule-audit.json",
         project_root / "config" / "rule-audit-baseline.yaml",
@@ -281,13 +337,13 @@ def validate_outputs(options: ValidateOptions) -> None:
     validate_shadowrocket_config(shadowrocket_path)
     validate_shadowrocket_config(shadowrocket_strict_path)
     validate_route_expectations(
-        mihomo_paths=[mihomo_path, android_mihomo_path],
+        mihomo_paths=[mihomo_path, android_mihomo_path, generic_mihomo_path],
         shadowrocket_path=shadowrocket_path,
         shadowrocket_strict_path=shadowrocket_strict_path,
         expectations_path=project_root / "config" / "route-expectations.yaml",
     )
     validate_rule_coverage(
-        mihomo_paths=[mihomo_path, android_mihomo_path],
+        mihomo_paths=[mihomo_path, android_mihomo_path, generic_mihomo_path],
         shadowrocket_path=shadowrocket_path,
         shadowrocket_strict_path=shadowrocket_strict_path,
         coverage_path=project_root / "config" / "rule-coverage.yaml",
@@ -297,6 +353,7 @@ def validate_outputs(options: ValidateOptions) -> None:
     if mihomo_bin.exists():
         subprocess.run([str(mihomo_bin), "-t", "-f", str(mihomo_path)], check=True)
         subprocess.run([str(mihomo_bin), "-t", "-f", str(android_mihomo_path)], check=True)
+        subprocess.run([str(mihomo_bin), "-t", "-f", str(generic_mihomo_path)], check=True)
 
 
 def smoke_runtime(options: RuntimeSmokeOptions) -> None:
@@ -309,7 +366,7 @@ def smoke_runtime(options: RuntimeSmokeOptions) -> None:
         raise FileNotFoundError(mihomo_bin)
 
     urls = options.urls or ["https://www.baidu.com/", "https://github.com/"]
-    for index, config_name in enumerate(("mihomo-full.yaml", "mihomo-android.yaml")):
+    for index, config_name in enumerate(("mihomo-full.yaml", "mihomo-android.yaml", "mihomo-generic.yaml")):
         run_mihomo_runtime_smoke(
             mihomo_bin=mihomo_bin,
             config_path=output_root / config_name,

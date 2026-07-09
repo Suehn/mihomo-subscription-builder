@@ -31,13 +31,13 @@ P2 节点发布安全：规则公开，完整订阅走私有 URL
 
 ### 2.1 节点层
 
-`UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供。生成器解析 `vless://`、`vmess://`、`trojan://`、`ss://` URI 订阅，也支持 Mihomo / Clash YAML 里的 `proxies` 列表，并输出 Mihomo 和 Shadowrocket 可用的订阅文件。
+`UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供；`UPSTREAM_SUB_URLS` 可再提供换行分隔或 JSON 数组形式的多个订阅地址。生成器解析 `vless://`、`vmess://`、`trojan://`、`ss://`、`hysteria2://` / `hy2://`、`anytls://` URI 订阅，也支持 Mihomo / Clash YAML 里的 `proxies` 列表。多源合并时会删除连接参数完全相同的重复节点，并稳定处理重名。
 
-`MESL_SUB_URL` 是可选的家宽订阅源。生成器只导入原始节点名包含 `家宽` 的 MESL 节点，并把它们标记为 `manual_only` 作为来源元数据；策略组层不再按来源排除这些节点，而是把它们加入各个静态 `select` / `fallback` 组供手动选择或后备。`🤖 AI` 组在 `美国Linuxdo` 后使用 `美国 10 家宽` / `美国家宽10` 命名变体作为后备，用来服务 ChatGPT、OpenAI、Codex、Claude、Anthropic、Gemini 和 Apple Intelligence 流量。若 MESL 实时端点对 GitHub Actions 限频，可以通过私密 `MESL_SUB_TEXT` secret 提供只含家宽节点的缓存 YAML 后备，但节点内容仍不能提交到仓库。
+`MESL_SUB_URL` 是可选的家宽订阅源。生成器只导入原始节点名包含 `家宽` 的 MESL 节点，并把它们标记为 `manual_only` 作为来源元数据；策略组层把这些节点加入所有静态 `select` 组、全局 fallback 和匹配的国家/地区 fallback。若 MESL 实时端点对 GitHub Actions 限频，可以通过私密 `MESL_SUB_TEXT` secret 提供只含家宽节点的缓存 YAML 后备，但节点内容仍不能提交到仓库。
 
-`LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` 是可选的私密单节点来源。生成器只匹配名称包含 `linuxdo` 或 `美国Linuxdo` 的节点，把它重命名为 `美国Linuxdo`，并作为 `🤖 AI` 组第一候选。真实 VLESS URI、UUID 和端口只应存在于本地环境变量或 GitHub Secrets，不进入仓库。
+`LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` 是可选的私密单节点来源。生成器只匹配名称包含 `linuxdo` 或 `美国Linuxdo` 的节点，把它重命名为 `美国Linuxdo`；它会出现在所有选择组和美国 fallback 中。真实 VLESS URI、UUID 和端口只应存在于本地环境变量或 GitHub Secrets，不进入仓库。
 
-`PINCHE_SUB_URL` 是可选的第二订阅源。它同样被标记为 `manual_only`：节点会进入 Mihomo 输出，并显示在各个静态 `select` 组和 `🤖 AI` fallback 组里。非 AI 默认排序仍由 `🚀 代理` 等静态组的 preferred token 控制，不会通过自动测速或故障转移自行切换；AI 组仅按明确配置的 fallback 顺序切换。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留，方便看到剩余流量和到期时间。
+`PINCHE_SUB_URL` 是可选的第二订阅源。它同样被标记为 `manual_only`：节点会进入 Mihomo 输出，并显示在所有静态 `select` 组、全局 fallback 和匹配的国家/地区 fallback 里。业务组本身保持静态 `select`，不会在未选择 fallback 时因短暂网络抖动自行换 IP。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留。
 
 生成器会基于所有实际输出节点的 `server` 字段生成前置 self-DIRECT 规则，避免节点入口本身被规则链再次代理。这个规则层保持最小粒度：IPv4 只生成 `/32`，IPv6 只生成 `/128`，域名只生成 exact `DOMAIN`；不会从 `sni`、`servername`、WebSocket `Host` 或其他伪装字段推导规则，避免把 CDN、伪装域名或普通站点扩大直连。
 
@@ -146,7 +146,7 @@ Apple 不是全代理，也不是全直连：
 Apple CN / Apple CDN -> DIRECT
 Apple Intelligence   -> 🤖 AI
 Apple Services       -> 🍎 Apple
-🍎 Apple 默认 DIRECT
+🍎 Apple 默认跟随 🚀 代理，保留 DIRECT 手动选项
 ```
 
 Microsoft 也拆成国内 CDN 和全球服务：
@@ -197,18 +197,17 @@ Mihomo 端现在用逻辑规则拆 Download：
 Mihomo 端：
 
 ```text
-🚀 代理：默认首选名称包含 Suehn-Suehn2-260.97 的主节点
-🤖 AI：fallback 组，默认首选 美国Linuxdo，失败后按顺序回到 美国 10 家宽 / 美国家宽10
-🌐 兜底：代理优先，多端一致
-⬇️ 下载：代理优先
-GitHub / AI / Google / Developer / Telegram / Microsoft / Streaming：代理优先
-🍎 Apple：DIRECT 优先
+🚀 代理：默认首选名称包含 Suehn-Suehn2 的当前主节点，流量数字变化不影响匹配
+🔁 故障转移：包含全部节点，主 Suehn 节点排第一
+国家/地区 fallback：仅在识别到对应节点时生成，只包含该地区节点；未预设但带国旗的节点按 ISO 代码自动成组
+🌐 兜底 / 下载 / GitHub / AI / Google / Developer / Telegram / Microsoft / Streaming：第一项统一为 🚀 代理
+🍎 Apple：第一项同样为 🚀 代理，保留 DIRECT 手动选项
 🪟 Microsoft：代理优先，CN/CDN 在前置规则直连
 ```
 
 这个默认值的失败模式是可控的：少量未知国内域名可能先经历 CN IP 判断，国外未知流量不会直接落到 DIRECT。
 
-除 `🤖 AI` 外，默认组都保持静态 `select`，不使用 `url-test` 或 `fallback` 作为默认路径。这样普通默认出口不会因为测速、短暂失败或网络抖动自动换 IP；需要切换时由客户端里手动选择。`🤖 AI` 组按用户指定改为 `fallback`，通过排序优先 `美国Linuxdo`，再回到 `美国 10 家宽` / `美国家宽10`，然后列出其他全部节点和 `🚀 代理`。
+所有业务组都保持静态 `select`，第一项统一跟随 `🚀 代理`，并直接列出全局 fallback、国家 fallback 和全部原始节点。只有显式选择 `🔁 故障转移` 或某个国家 fallback 时才会自动健康切换，因此默认出口不会因短暂抖动擅自换 IP。
 
 `GitHub`、`AI`、`Google`、`Developer`、`Microsoft`、`Telegram`、`Streaming`、`Download` 这些关键国外组不包含 `DIRECT` 成员。这是为了避免客户端 `store-selected` 把一次临时手动选择持久化成长期 DIRECT，导致 GitHub、AI、开发下载或国外大文件下载重新绕开代理。需要全局应急直连时，仍可以从 `🚀 代理` 或 `🌐 兜底` 这类更上层组操作。
 
@@ -236,7 +235,11 @@ macOS overlay 只把 NetEase Music、UURemote 这类纯国内进程提前 DIRECT
 
 WeChat / QQ 包名同样不放在所有规则最前，而是放在国外硬钉之后。暂不使用 `tun.exclude-package`，因为它会让流量完全绕过 Mihomo，日志不可见，后续排障成本更高。
 
-### 5.3 iOS Shadowrocket
+### 5.3 Windows / Linux / OpenClash / 路由器
+
+`mihomo-generic.yaml` 不叠加 macOS 进程规则或 Android 包名规则，保留共享的 DNS、分流、统一策略组和 fallback 行为，适合作为 Windows/Linux Clash Verge Rev、OpenClash 和其他 Mihomo 设备的通用订阅。
+
+### 5.4 iOS Shadowrocket
 
 `shadowrocket.conf` 是 iOS 默认配置，策略组默认值与 Mihomo 保持一致：
 
@@ -251,7 +254,7 @@ Shadowrocket 不强行复刻 Mihomo 的 `AND/OR/NOT/SUB-RULE`。渲染器会跳�
 
 这版关键变化是 iOS 不再把 `🌐 兜底` 改成 DIRECT first。手机端仍然通过前置国内规则和 CN IP 规则省流量，但未知国外流量不会因为客户端差异直接漏到 DIRECT。
 
-### 5.4 iOS Shadowrocket Strict
+### 5.5 iOS Shadowrocket Strict
 
 `shadowrocket-strict.conf` 是保留给已有订阅 URL 的兼容配置。它的规则和策略组默认值现在与 `shadowrocket.conf` 一致。
 
@@ -275,8 +278,8 @@ DNS 以稳定国内 DoH 为主，不默认使用 `1.1.1.1` 或 `8.8.8.8` 这类�
 
 1. `python -m subscription_builder.cli validate`：检查 Mihomo/Shadowrocket 语法、策略组、provider 引用、规则顺序、IPv6 策略、路由期望、类别覆盖矩阵、provider audit 和 provider drift baseline。
 2. `python -m pytest`：检查渲染器、逻辑规则解析、Shadowrocket 静态默认组、provider 拆分和路由模拟。
-3. `verge-mihomo -t`：对 `mihomo-full.yaml` 和 `mihomo-android.yaml` 做真实 Mihomo 配置检查。
-4. GitHub Actions：push 后重新生成并发布远端订阅。
+3. `verge-mihomo -t`：对三个 Mihomo 配置做真实配置检查（本机存在内核时）。
+4. GitHub Actions：push 后重新生成并发布远端订阅，再通过 HTTPS 回拉主要订阅和公开规则文件。
 
 关键测试目标：
 
@@ -310,6 +313,7 @@ legacy 模式下，私有发布密钥未配置完整，GitHub Pages 仍上传 `d
 
 - `mihomo-full.yaml` 规则数、provider 数、策略组数。
 - `mihomo-android.yaml` 规则数、provider 数、策略组数。
+- `mihomo-generic.yaml` 规则数、provider 数、策略组数。
 - `shadowrocket.conf` 是否静态代理优先。
 - `shadowrocket-strict.conf` 是否与默认 Shadowrocket 配置一致。
 - Download 组是否代理优先。
@@ -318,9 +322,9 @@ legacy 模式下，私有发布密钥未配置完整，GitHub Pages 仍上传 `d
 
 split-private 模式下，私有发布密钥配置完整，GitHub Pages 改为上传 `public-dist/`，完整订阅上传到 `PRIVATE_BASE_URL` 对应的私有静态目录。至少检查：
 
-- GitHub Pages 上不存在 `mihomo-full.yaml`、`mihomo-android.yaml`、`shadowrocket.conf`、`shadowrocket-subscription.txt`。
+- GitHub Pages 上不存在 `mihomo-full.yaml`、`mihomo-android.yaml`、`mihomo-generic.yaml`、`shadowrocket.conf`、`shadowrocket-subscription.txt`。
 - GitHub Pages 上 `rules/mihomo/` 和 `rules/shadowrocket/` 可访问。
-- `PRIVATE_BASE_URL/mihomo-full.yaml` 和 `PRIVATE_BASE_URL/shadowrocket.conf` 可通过客户端订阅更新。
+- `PRIVATE_BASE_URL` 下三个 Mihomo 配置和 Shadowrocket 配置都可通过客户端订阅更新；工作流会自动回拉验证。
 - 私有 Shadowrocket 配置里的 fallback subscription 指向 `PRIVATE_BASE_URL/shadowrocket-subscription.txt`。
 
 ## 9. 当前成功标准
@@ -330,11 +334,13 @@ split-private 模式下，私有发布密钥配置完整，GitHub Pages 改为�
 ```text
 macOS: Final 代理优先，Download 代理优先，CN IP 可解析 DIRECT
 Android: 国内 App 强 DIRECT，WeChat / QQ 不抢国外硬钉
+Windows/Linux/OpenClash: 使用无设备 overlay 的 mihomo-generic.yaml
 iOS Shadowrocket: Final 代理优先，Download 代理优先
 iOS Shadowrocket Strict: 与默认 iOS 配置一致
 Developer: Go / npm / PyPI / Docker / Hugging Face / VS Code / Anaconda / PyTorch / HashiCorp 等显式 Developer
 关键国外组: GitHub / AI / Google / Developer / Microsoft / Telegram / Streaming / Download 不含 DIRECT
-AI 组: fallback 顺序为 美国Linuxdo -> 美国家宽10 变体 -> 其他节点 -> 代理组
+策略组: 业务组统一先跟随 🚀 代理，并直接提供全部节点
+Fallback: 全局组包含全部节点；识别到国家/地区时生成对应 fallback
 Download: 国内候选 DIRECT，国外候选 Download 代理组
 IPv6: 关闭
 发布: GitHub Actions 成功；legacy 模式下旧订阅 URL 不断，split-private 模式下公开 Pages 只含规则、私有 URL 可拉取完整订阅
@@ -352,6 +358,7 @@ GitHub Pages:
 私有静态服务:
   dist/mihomo-full.yaml
   dist/mihomo-android.yaml
+  dist/mihomo-generic.yaml
   dist/shadowrocket.conf
   dist/shadowrocket-strict.conf
   dist/shadowrocket-subscription.txt

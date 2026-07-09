@@ -1,5 +1,6 @@
 subscription:
   env_var: UPSTREAM_SUB_URL
+  urls_env_var: UPSTREAM_SUB_URLS
   extra_sources:
   - id: mesl
     label: MESL
@@ -21,7 +22,7 @@ subscription:
     name_override: 美国Linuxdo
     prefix_label: false
     metadata:
-      note: Set LINUXDO_SUB_URL or LINUXDO_SUB_TEXT as a private secret; the node is renamed to 美国Linuxdo and is preferred by the AI fallback group.
+      note: Set LINUXDO_SUB_URL or LINUXDO_SUB_TEXT as a private secret; the node is renamed to 美国Linuxdo and joins every select group plus the US fallback group.
   - id: pinche
     label: Pin-Che
     env_var: PINCHE_SUB_URL

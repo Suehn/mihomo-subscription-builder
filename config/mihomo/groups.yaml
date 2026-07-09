@@ -2,104 +2,157 @@ groups:
   - key: PROXY
     type: select
     nodes_first: true
+    include_country_fallbacks: true
     include_nodes:
       preferred_name_contains:
-        - Suehn-Suehn2-260.97
         - Suehn-Suehn2
     members:
+      - "@Fallback"
       - DIRECT
-  - key: RuleUpdate
-    type: select
-    members:
-      - "@PROXY"
-      - DIRECT
-  - key: GitHub
-    type: select
-    members:
-      - "@PROXY"
-    include_nodes:
-      preferred_name_contains:
-        - Suehn-Suehn2-260.97
-        - Suehn-Suehn2
-  - key: AI
+  - key: Fallback
     type: fallback
     nodes_first: true
     url: https://www.gstatic.com/generate_204
     interval: 300
+    lazy: true
     include_nodes:
       preferred_name_contains:
-        - 美国Linuxdo
-        - Linuxdo
-        - linuxdo
-        - 美国 10 家宽
-        - 美国家宽10
-        - 美国家宽 10
-        - 美国 10
+        - Suehn-Suehn2
+    append_country_fallbacks_after: true
+  - key: RuleUpdate
+    type: select
     members:
       - "@PROXY"
+      - "@Fallback"
+      - DIRECT
+    include_country_fallbacks: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2
+  - key: GitHub
+    type: select
+    members:
+      - "@PROXY"
+      - "@Fallback"
+    include_country_fallbacks: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2
+  - key: AI
+    type: select
+    members:
+      - "@PROXY"
+      - "@Fallback"
+    include_country_fallbacks: true
+    include_nodes:
+      preferred_name_contains:
+        - Suehn-Suehn2
   - key: Google
     type: select
     members:
       - "@PROXY"
+      - "@Fallback"
+    include_country_fallbacks: true
     include_nodes:
       preferred_name_contains:
-        - Suehn-Suehn2-260.97
         - Suehn-Suehn2
   - key: Developer
     type: select
     members:
       - "@PROXY"
+      - "@Fallback"
+    include_country_fallbacks: true
     include_nodes:
       preferred_name_contains:
-        - Suehn-Suehn2-260.97
         - Suehn-Suehn2
   - key: Apple
     type: select
     members:
-      - DIRECT
       - "@PROXY"
+      - "@Fallback"
+      - DIRECT
+    include_country_fallbacks: true
     include_nodes:
       preferred_name_contains:
-        - Suehn-Suehn2-260.97
         - Suehn-Suehn2
   - key: Microsoft
     type: select
     members:
       - "@PROXY"
+      - "@Fallback"
+    include_country_fallbacks: true
     include_nodes:
       preferred_name_contains:
-        - Suehn-Suehn2-260.97
         - Suehn-Suehn2
   - key: Telegram
     type: select
     members:
       - "@PROXY"
+      - "@Fallback"
+    include_country_fallbacks: true
     include_nodes:
       preferred_name_contains:
-        - Suehn-Suehn2-260.97
         - Suehn-Suehn2
   - key: Streaming
     type: select
     members:
       - "@PROXY"
+      - "@Fallback"
+    include_country_fallbacks: true
     include_nodes:
       preferred_name_contains:
-        - Suehn-Suehn2-260.97
         - Suehn-Suehn2
   - key: Download
     type: select
     members:
       - "@PROXY"
+      - "@Fallback"
+    include_country_fallbacks: true
     include_nodes:
       preferred_name_contains:
-        - Suehn-Suehn2-260.97
         - Suehn-Suehn2
   - key: Final
     type: select
     members:
       - "@PROXY"
+      - "@Fallback"
       - DIRECT
+    include_country_fallbacks: true
     include_nodes:
       preferred_name_contains:
-        - Suehn-Suehn2-260.97
         - Suehn-Suehn2
+
+country_fallbacks:
+  type: fallback
+  url: https://www.gstatic.com/generate_204
+  interval: 300
+  lazy: true
+  countries:
+    - name: "🇭🇰 香港故障转移"
+      patterns: ["🇭🇰", "香港", "Hong[ -]?Kong", "(?<![A-Za-z])HK(?:$|[^A-Za-z])"]
+    - name: "🇹🇼 台湾故障转移"
+      patterns: ["🇹🇼", "台湾", "臺灣", "Taiwan", "(?<![A-Za-z])TW(?:$|[^A-Za-z])"]
+    - name: "🇸🇬 新加坡故障转移"
+      patterns: ["🇸🇬", "新加坡", "Singapore", "(?<![A-Za-z])SG(?:$|[^A-Za-z])"]
+    - name: "🇯🇵 日本故障转移"
+      patterns: ["🇯🇵", "日本", "Japan", "(?<![A-Za-z])JP(?:$|[^A-Za-z])"]
+    - name: "🇺🇸 美国故障转移"
+      patterns: ["🇺🇸", "美国", "美國", "United[ -]?States", "(?<![A-Za-z])USA?(?:$|[^A-Za-z])"]
+    - name: "🇨🇦 加拿大故障转移"
+      patterns: ["🇨🇦", "加拿大", "Canada", "(?<![A-Za-z])CA(?:$|[^A-Za-z])"]
+    - name: "🇬🇧 英国故障转移"
+      patterns: ["🇬🇧", "英国", "英國", "United[ -]?Kingdom", "Britain", "(?<![A-Za-z])UK(?:$|[^A-Za-z])"]
+    - name: "🇰🇷 韩国故障转移"
+      patterns: ["🇰🇷", "韩国", "韓國", "Korea", "(?<![A-Za-z])KR(?:$|[^A-Za-z])"]
+    - name: "🇦🇺 澳大利亚故障转移"
+      patterns: ["🇦🇺", "澳大利亚", "澳洲", "Australia", "(?<![A-Za-z])AU(?:$|[^A-Za-z])"]
+    - name: "🇩🇪 德国故障转移"
+      patterns: ["🇩🇪", "德国", "德國", "Germany", "(?<![A-Za-z])DE(?:$|[^A-Za-z])"]
+    - name: "🇫🇷 法国故障转移"
+      patterns: ["🇫🇷", "法国", "法國", "France", "(?<![A-Za-z])FR(?:$|[^A-Za-z])"]
+    - name: "🇳🇱 荷兰故障转移"
+      patterns: ["🇳🇱", "荷兰", "荷蘭", "Netherlands", "(?<![A-Za-z])NL(?:$|[^A-Za-z])"]
+    - name: "🇷🇺 俄罗斯故障转移"
+      patterns: ["🇷🇺", "俄罗斯", "俄羅斯", "Russia", "(?<![A-Za-z])RU(?:$|[^A-Za-z])"]
+    - name: "🇮🇳 印度故障转移"
+      patterns: ["🇮🇳", "印度", "India", "(?<![A-Za-z])IN(?:$|[^A-Za-z])"]
