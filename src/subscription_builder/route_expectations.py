@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
@@ -33,10 +34,16 @@ def _domain_matches(rule_domain: str, domain: str, suffix: bool) -> bool:
     return domain == rule_domain
 
 
-def _provider_matches(path: Path, domain: str) -> bool:
+@lru_cache(maxsize=None)
+def _provider_payload_lines(path: Path) -> tuple[str, ...]:
     if not path.exists():
-        return False
-    return any(rule_matches_domain(line, domain) for line in payload_lines_from_file(path))
+        return ()
+    return tuple(payload_lines_from_file(path))
+
+
+@lru_cache(maxsize=None)
+def _provider_matches(path: Path, domain: str) -> bool:
+    return any(rule_matches_domain(line, domain) for line in _provider_payload_lines(path))
 
 
 def _mihomo_provider_paths(config: dict[str, object], config_path: Path) -> dict[str, Path]:
