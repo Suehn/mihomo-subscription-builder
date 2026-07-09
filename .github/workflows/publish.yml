@@ -91,9 +91,14 @@ jobs:
           ssh "${SSH_OPTIONS[@]}" "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST" "mkdir -p '$PRIVATE_SSH_PATH'"
           SSH_COMMAND="ssh -i $HOME/.ssh/private_deploy_key -p $SSH_PORT -o BatchMode=yes -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=6"
           rsync -az --delete -e "$SSH_COMMAND" dist/ "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST:$PRIVATE_SSH_PATH/"
+          private_http_host="$(python -c 'import os, urllib.parse; print(urllib.parse.urlsplit(os.environ["EFFECTIVE_PRIVATE_BASE_URL"]).hostname or "")')"
+          private_http_path="$(python -c 'import os, urllib.parse; print(urllib.parse.urlsplit(os.environ["EFFECTIVE_PRIVATE_BASE_URL"]).path.rstrip("/"))')"
           health="$(
-            ssh "${SSH_OPTIONS[@]}" "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST" bash -s -- "$PRIVATE_SSH_PATH" <<'REMOTE_HEALTH'
+            ssh "${SSH_OPTIONS[@]}" "$PRIVATE_SSH_USER@$PRIVATE_SSH_HOST" bash -s -- \
+              "$PRIVATE_SSH_PATH" "$private_http_host" "$private_http_path" <<'REMOTE_HEALTH'
           root="$1"
+          http_host="$2"
+          http_path="$3"
           files=missing
           if test -s "$root/mihomo-full.yaml" && test -s "$root/mihomo-generic.yaml" && test -s "$root/shadowrocket.conf"; then
             files=ok
@@ -111,6 +116,14 @@ jobs:
           if command -v ss >/dev/null 2>&1; then
             listeners="$(ss -H -ltn 2>/dev/null | awk '$4 ~ /:80$|:443$/ { count++ } END { print count+0 }')"
           fi
+          public_http_listener=no
+          if command -v ss >/dev/null 2>&1 && ss -H -ltn 2>/dev/null | awk '{ print $4 }' | grep -Eq '^(\*|0\.0\.0\.0|\[::\]):80$'; then
+            public_http_listener=yes
+          fi
+          nginx_mapping=no
+          if command -v grep >/dev/null 2>&1 && grep -R -F -q -- "$root" /etc/nginx 2>/dev/null; then
+            nginx_mapping=yes
+          fi
           http=unavailable
           https=unavailable
           if command -v curl >/dev/null 2>&1; then
@@ -119,7 +132,15 @@ jobs:
             http="${http:-000}"
             https="${https:-000}"
           fi
-          printf 'files=%s services=%s listeners=%s localhost_http=%s localhost_https=%s\n' "$files" "$services" "$listeners" "$http" "$https"
+          artifact_http=unavailable
+          if command -v curl >/dev/null 2>&1; then
+            artifact_http="$(curl --ipv4 --http1.1 --silent --output /dev/null --write-out '%{http_code}' \
+              --header "Host: $http_host" --connect-timeout 3 --max-time 5 \
+              "http://127.0.0.1${http_path}/mihomo-full.yaml" 2>/dev/null || true)"
+            artifact_http="${artifact_http:-000}"
+          fi
+          printf 'files=%s services=%s listeners=%s public_http=%s nginx_mapping=%s localhost_http=%s localhost_https=%s artifact_http=%s\n' \
+            "$files" "$services" "$listeners" "$public_http_listener" "$nginx_mapping" "$http" "$https" "$artifact_http"
           REMOTE_HEALTH
           )"
           echo "::notice title=Private web health::$health"
@@ -131,8 +152,8 @@ jobs:
           private_base_url="${EFFECTIVE_PRIVATE_BASE_URL%/}"
           for artifact in mihomo-full.yaml mihomo-android.yaml mihomo-generic.yaml shadowrocket.conf shadowrocket-subscription.txt; do
             echo "Checking $artifact"
-            curl --ipv4 --http1.1 --fail --silent --show-error --location --retry 6 --retry-all-errors \
-              --connect-timeout 15 --max-time 60 \
+            curl --ipv4 --http1.1 --fail --silent --show-error --location --retry 1 --retry-all-errors \
+              --connect-timeout 8 --max-time 20 \
               "$private_base_url/$artifact?build=$GITHUB_SHA" -o "$verify_dir/$artifact"
             test -s "$verify_dir/$artifact"
           done
