@@ -31,13 +31,7 @@ P2 节点发布安全：规则公开，完整订阅走私有 URL
 
 ### 2.1 节点层
 
-`UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供；`UPSTREAM_SUB_URLS` 可再提供换行分隔或 JSON 数组形式的多个订阅地址。生成器解析 `vless://`、`vmess://`、`trojan://`、`ss://`、`hysteria2://` / `hy2://`、`anytls://` URI 订阅，也支持 Mihomo / Clash YAML 里的 `proxies` 列表。多源合并时会删除连接参数完全相同的重复节点，并稳定处理重名。
-
-`MESL_SUB_URL` 是可选的家宽订阅源。生成器只导入原始节点名包含 `家宽` 的 MESL 节点，并把它们标记为 `manual_only` 作为来源元数据；策略组层把这些节点加入所有静态 `select` 组、全局 fallback 和匹配的国家/地区 fallback。若 MESL 实时端点对 GitHub Actions 限频，可以通过私密 `MESL_SUB_TEXT` secret 提供只含家宽节点的缓存 YAML 后备，但节点内容仍不能提交到仓库。
-
-`LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` 是可选的私密单节点来源。生成器只匹配名称包含 `linuxdo` 或 `美国Linuxdo` 的节点，把它重命名为 `美国Linuxdo`；它会出现在所有选择组和美国 fallback 中。真实 VLESS URI、UUID 和端口只应存在于本地环境变量或 GitHub Secrets，不进入仓库。
-
-`PINCHE_SUB_URL` 是可选的第二订阅源。它同样被标记为 `manual_only`：节点会进入 Mihomo 输出，并显示在所有静态 `select` 组、全局 fallback 和匹配的国家/地区 fallback 里。业务组本身保持静态 `select`，不会在未选择 fallback 时因短暂网络抖动自行换 IP。订阅返回的 `subscription-userinfo` 流量头和人工记录的套餐信息会写入 `dist/node-sources.json`，并作为生成配置顶部注释保留。
+`UPSTREAM_SUB_URL` 由本地环境或 GitHub Actions secret 提供。当前部署只保留名称匹配 SUEHN 的节点，并统一显示为 `SUEHN`；额外订阅源已从项目配置和发布工作流中移除。真实连接参数继续保存在私密订阅和本地产物中，不进入仓库。业务策略组和国内直连、海外代理的规则顺序保持原有设计。
 
 生成器会基于所有实际输出节点的 `server` 字段生成前置 self-DIRECT 规则，避免节点入口本身被规则链再次代理。这个规则层保持最小粒度：IPv4 只生成 `/32`，IPv6 只生成 `/128`，域名只生成 exact `DOMAIN`；不会从 `sni`、`servername`、WebSocket `Host` 或其他伪装字段推导规则，避免把 CDN、伪装域名或普通站点扩大直连。
 

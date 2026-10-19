@@ -20,14 +20,7 @@ through the private `UPSTREAM_SUB_URL` secret.
 
 ## What It Does
 
-- Pulls one subscription from `UPSTREAM_SUB_URL`, or merges additional
-  newline-separated/JSON-array URLs from `UPSTREAM_SUB_URLS`
-- Optionally merges `MESL_SUB_URL` home broadband nodes whose names contain
-  `家宽` for manual selection and global/country fallback groups
-- Optionally merges a private `LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` single
-  node and renames it to `美国Linuxdo`
-- Optionally merges a secondary `PINCHE_SUB_URL` subscription as manual-only
-  nodes
+- Pulls `UPSTREAM_SUB_URL`, keeps the SUEHN node, and gives it the stable name `SUEHN`
 - Decodes Base64 subscriptions automatically
 - Parses both URI subscriptions and Mihomo/Clash YAML proxy lists
 - Parses `vless://`, `vmess://`, `trojan://`, `ss://`, `hysteria2://`/`hy2://`,
@@ -160,19 +153,9 @@ Mihomo and Shadowrocket share the same group names where possible:
   `AND(download,GEOIP,CN)` split, not by making the whole download group DIRECT.
 - `🌐 兜底`: defaults to `🚀 代理` on every generated client.
 
-Optional secondary node sources are explicit:
-
-- `MESL_SUB_URL` is marked `manual_only` but filtered to names containing
-  `家宽`. Those nodes are rendered into every static select group for manual
-  selection and in matching country fallback groups. If the live MESL endpoint rate-limits a build,
-  `MESL_SUB_TEXT` can provide a private cached home-node YAML fallback without
-  committing node data.
-- `LINUXDO_SUB_URL` / `LINUXDO_SUB_TEXT` is an optional private single-node
-  source. The node is filtered by `linuxdo` / `美国Linuxdo`, renamed to
-  `美国Linuxdo`, and injected through secrets rather than committed to source.
-- `PINCHE_SUB_URL` remains manual-only. Those nodes are rendered so they can be
-  selected manually from every static select group and participate in global or
-  matching country fallback groups.
+The deployed subscription uses only SUEHN. Retired secondary sources are no longer
+loaded by the project configuration or the publishing workflow. Service policy
+groups and routing rules keep their existing defaults.
 
 Traffic quota and expiry metadata are written to `dist/node-sources.json` and
 also emitted as comments near the top of generated configs.
@@ -339,11 +322,6 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 
 export UPSTREAM_SUB_URL="https://example.com/sub/your-token"
-export UPSTREAM_SUB_URLS=$'https://example.com/sub/second-token\nhttps://example.com/sub/third-token' # optional
-export MESL_SUB_URL="https://example.com/mesl/your-token" # optional; imports names containing 家宽
-export MESL_SUB_TEXT="$(cat /private/path/mesl-home-only.yaml)" # optional fallback
-export LINUXDO_SUB_TEXT="$(cat /private/path/linuxdo-vless.txt)" # optional; exact node text or YAML
-export PINCHE_SUB_URL="https://example.com/pcdy/your-token" # optional, manual-only
 export PUBLIC_BASE_URL="https://suehn.github.io/mihomo-subscription-builder"
 export PRIVATE_BASE_URL="https://private.example.com/mihomo-subscription-builder"
 
@@ -379,24 +357,8 @@ The public-safe GitHub Pages artifact lands in `public-dist/`:
 Create the required repository secret:
 
 - `UPSTREAM_SUB_URL`
-- `UPSTREAM_SUB_URLS`: optional newline-separated URLs or a JSON string array.
-  These feeds are merged with `UPSTREAM_SUB_URL`; exact duplicate connections
-  are removed and duplicate display names are made unique.
-- `MESL_SUB_URL`: optional MESL subscription. When present, only nodes whose
-  names contain `家宽` are imported. They remain manual-only as source metadata,
-  but every static select group exposes them for manual choice and matching
-  country fallbacks use them automatically.
-- `MESL_SUB_TEXT`: optional private cached MESL home-node YAML fallback. Use it
-  when the live MESL endpoint rate-limits GitHub Actions; it must stay in
-  GitHub Secrets and must not be committed.
-- `LINUXDO_SUB_URL` or `LINUXDO_SUB_TEXT`: optional private Linuxdo node source.
-  Store the VLESS URI or a one-node YAML subscription in GitHub Secrets. The
-  generator renames the matched node to `美国Linuxdo`; it remains selectable in
-  every group and joins the US fallback group.
-- `PINCHE_SUB_URL`: optional secondary subscription. When present, its nodes are
-  included in Mihomo as manual-only `Pin-Che` nodes and exposed in static select
-  groups for manual choice. Its node `server` entries are also covered by exact
-  self-DIRECT rules in the private generated configs.
+
+The source must contain one SUEHN node. Other node names are filtered out.
 
 To enable private full-subscription delivery without breaking URL-based updates,
 also create these repository secrets:
